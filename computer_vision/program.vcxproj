@@ -137,8 +137,24 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="program.cpp" />
+    <ClCompile Include="robot.cpp" />
+    <ClCompile Include="shared_memory.cpp" />
     <ClCompile Include="timer.cpp" />
+    <ClCompile Include="update_simulation.cpp" />
     <ClCompile Include="vision.cpp" />
+    <ClCompile Include="vision_simulation.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="a.bmp" />
+    <Image Include="background.bmp" />
+    <Image Include="obstacle_black.bmp" />
+    <Image Include="obstacle_blue.bmp" />
+    <Image Include="obstacle_green.bmp" />
+    <Image Include="obstacle_orange.bmp" />
+    <Image Include="obstacle_red.bmp" />
+    <Image Include="output.bmp" />
+    <Image Include="robot_A.bmp" />
+    <Image Include="robot_B.bmp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

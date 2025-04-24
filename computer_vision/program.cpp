@@ -9,18 +9,26 @@ using namespace std;
 
 #include "image_transfer.h"
 
+#define KEY(c) ( GetAsyncKeyState((int)(c)) & (SHORT)0x8000 )
+
 #include "vision.h"
+
+#include "robot.h"
+
+#include "vision_simulation.h"
 
 #include "timer.h"
 
-#define KEY(c) ( GetAsyncKeyState((int)(c)) & (SHORT)0x8000 )
+#include "update_simulation.h"
 
-// you should divide your project into functions like I did below
-// -- I recommend you use less global variable than I do because
-// they are less safe -- use call by reference function parameters
-// instead.
+
+extern robot_system S1;
+
+
 int activate();
 int deactivate();
+int run_sim();
+int run_vision();
 int find_object(i2byte &nlabel);
 int select_object(i2byte &nlabel, image &label, image &a, image &b);
 int search_object(i2byte &nlabel, image &label, int is, int js);
@@ -28,7 +36,7 @@ int track_object(i2byte nlabel);
 int label_objects(int tvalue);
 
 // declare some global image structures (globals are bad, but easy)
-image a,b,rgb;
+image a,b,rgb1;
 image rgb0; // original image before processing
 image label;
 
@@ -36,38 +44,40 @@ int	tvalue = 79; // threshold value
 
 const int IMAGE_WIDTH = 640;
 const int IMAGE_HEIGHT = 480;
-
+int mod;
 int cam_number = 0;
 
 int main()
 { 
 	i2byte nlabel;
-	int width, height;
 
 	activate_vision();
-	
-	// set camera number (normally 0 or 1)
-	cam_number = 0; 
-	width  = 640;
-	height = 480;
-
-	activate_camera(cam_number,height,width);	// activate camera
-
-	cout << "\npress space to begin.";
-	pause();
 
 	// initialize the program and
 	// create some images for processing
 	activate();
+	 
+	cout << "\nSelect module to run: \n1 - Simulator \n2 - Hardware \n";
+	cin >> mod;
+	
+	if (mod == 1) {
+		cout << "\npress space key to begin program.";
+		pause();
 
-	// find an object
-	// and select it from the keyboard
-	find_object(nlabel);
+		run_sim();
+		
+		return 0;
+	}
+	else if (mod == 2) {
 
-	// track an object's centroid
-	// if the object moves the program will track
-	// the new position of the centroid
-	track_object(nlabel);
+		cout << "\npress space key to begin program.";
+		pause();
+		
+		run_vision();
+
+		return 0;
+	}
+	
 
 	// deactivate the program
 	deactivate();
@@ -80,6 +90,222 @@ int main()
  	return 0; // no errors
 }
 
+int run_sim() {
+	double x0, y0, theta0, max_speed, opponent_max_speed;
+	int pw_l, pw_r, pw_laser, laser;
+	double width1, height1;
+	int n_robot;
+	double x_obs[50] = { 0.0 }, y_obs[50] = { 0.0 };
+	double D, Lx, Ly, Ax, Ay, alpha_max;
+	double tc, tc0; // clock time
+	int mode;
+	int pw_l_o, pw_r_o, pw_laser_o, laser_o;
+	int capture = 0;
+	int v_mode;
+	i2byte nlabel{};
+	bool selecting = true;
+
+	width1 = 640;
+	height1 = 480;
+
+	const int N_obs = 2;
+
+	char obstacle_file[N_obs][S_MAX] = {
+		"obstacle_black.bmp" , "obstacle_green.bmp"
+	};
+
+	// obstacle locations
+	// -- you must set one location for each obstacle
+
+	x_obs[0] = 270.5; // pixels
+	y_obs[0] = 270.5; // pixels
+
+	x_obs[1] = 135; // pixels
+	y_obs[1] = 135; // pixels
+	D = 121.0;
+
+	Lx = 31.0;
+	Ly = 0.0;
+
+	Ax = 37.0;
+	Ay = 0.0;
+
+	alpha_max = 3.14159 / 2;
+
+	n_robot = 1;
+
+	activate_simulation(width1, height1,
+		x_obs, y_obs, N_obs,
+		"robot_A.bmp", "robot_B.bmp", "background.bmp",
+		obstacle_file, D, Lx, Ly,
+		Ax, Ay, alpha_max, n_robot);
+
+	mode = 0;
+	set_simulation_mode(mode);
+
+	x0 = 470;
+	y0 = 170;
+	theta0 = 0;
+	set_robot_position(x0, y0, theta0);
+
+	x0 = 150;
+	y0 = 375;
+	theta0 = 3.14159 / 4;
+	set_opponent_position(x0, y0, theta0);
+
+	pw_l = 0; // pulse width for left wheel servo (us)
+	pw_r = 0; // pulse width for right wheel servo (us)
+	pw_laser = 1500; // pulse width for laser servo (us)
+	laser = 0; //
+
+	max_speed = 100; // max wheel speed of robot (pixels/s)
+	opponent_max_speed = 100;
+
+	set_inputs(pw_l, pw_r, pw_laser, laser, max_speed);
+
+	// opponent inputs
+	pw_l_o = 0; // pulse width for left wheel servo (us)
+	pw_r_o = 0; // pulse width for right wheel servo (us)
+	pw_laser_o = 1500; // pulse width for laser servo (us)
+	laser_o = 0; // laser input (0 - off, 1 - fire)
+
+	// manually set opponent inputs for the simulation
+	// -- good for testing your program
+	set_opponent_inputs(pw_l_o, pw_r_o, pw_laser_o, laser_o,
+		opponent_max_speed);
+
+	activate();
+
+	tc0 = high_resolution_time();
+	double dpw = 500;
+
+	i2byte* pl;
+	int i, j;
+
+	// start in the image
+	i = 200;
+	j = 300;
+
+	while (1) {
+
+		//		update_background();
+		//		update_obstacles();
+
+				// simulates the robots and acquires the image from simulation
+		acquire_image_sim(rgb1);
+
+		//		update_image(rgb);
+
+		tc = high_resolution_time() - tc0;
+
+		// fire laser
+		if (tc > 1) laser = 1;
+
+		if (tc > 9) laser_o = 1;
+
+		if ((tc > 1.5) && !capture) {
+			save_rgb_image("output.bmp", rgb1);
+			capture = 1;
+		}
+
+		// turn off the lasers so we can fire it again later
+		if (tc > 10) {
+			laser = 0;
+			laser_o = 0;
+		}
+
+		// fire laser at tc = 14 s
+		if (tc > 14) {
+			laser = 1;
+
+			// turn laser angle alpha at the same time
+			pw_laser = 1000;
+		}
+
+		// change the inputs to move the robot around
+
+		// pw_l -- pulse width of left servo (us) (from 1000 to 2000)
+		// pw_r -- pulse width of right servo (us) (from 1000 to 2000)
+		// pw_laser -- pulse width of laser servo (us) (from 1000 to 2000)
+		// -- 1000 -> -90 deg
+		// -- 1500 -> 0 deg
+		// -- 2000 -> 90 deg
+		// laser -- (0 - laser off, 1 - fire laser for 3 s)
+		// max_speed -- pixels/s for right and left wheels
+
+
+		if (KEY('I')) { // forwards
+			pw_l_o = 1500 - dpw;
+			pw_r_o = 1500 + dpw;
+		}
+
+		if (KEY('K')) { // backwards
+			pw_l_o = 1500 + dpw;
+			pw_r_o = 1500 - dpw;
+		}
+
+		if (KEY('J')) { // CCW
+			pw_l_o = 1500 + dpw;
+			pw_r_o = 1500 + dpw;
+		}
+
+		if (KEY('L')) { // CW
+			pw_l_o = 1500 - dpw;
+			pw_r_o = 1500 - dpw;
+		}
+
+		// manually set opponent inputs for the simulation
+		// -- good for testing your program
+
+		set_inputs(pw_l_o, pw_r_o, pw_laser_o, laser_o, max_speed);
+
+		set_opponent_inputs(pw_l_o, pw_r_o, pw_laser_o, laser_o,
+			opponent_max_speed);
+
+		// * v_mode is an optional argument for view_rgb_image(...)
+		// - adjusting it might improve performance / reduce delays
+		// -- see "image_transfer.h" for more details
+		v_mode = 1;
+
+		//select object function for simulator
+		view_rgb_image(rgb1, v_mode);
+
+
+		// * I removed the Sleep / delay function call below to 
+		// improve performance / reduce delays, especially with 
+		// player 1 / player 2 scenarios on laptops
+		// -- it seems laptops tend to go into low CPU mode
+		// when Sleep is called, which slows down the simulation
+		// more than the requested sleep time
+//		Sleep(10); // 100 fps max
+	}
+
+	return 0;
+}
+
+int run_vision() {
+
+	int width, height;
+	i2byte nlabel;
+
+	// set camera number (normally 0 or 1)
+	cam_number = 0;
+	width = 640;
+	height = 480;
+
+	activate_camera(cam_number, height, width);	// activate camera
+
+	acquire_image(rgb0, cam_number); // acquire an image from a video source (RGB format)
+
+	// label objects in the image
+	label_objects(tvalue);
+
+	select_object(nlabel, label, a, b);
+
+	track_object(nlabel);
+
+	return 0;
+}
 
 int activate()
 // initialize the program
@@ -93,9 +319,9 @@ int activate()
 	b.width = IMAGE_WIDTH;
 	b.height = IMAGE_HEIGHT;
 
-	rgb.type = RGB_IMAGE;
-	rgb.width = IMAGE_WIDTH;
-	rgb.height = IMAGE_HEIGHT;
+	rgb1.type = RGB_IMAGE;
+	rgb1.width = IMAGE_WIDTH;
+	rgb1.height = IMAGE_HEIGHT;
 
 	rgb0.type = RGB_IMAGE;
 	rgb0.width = IMAGE_WIDTH;
@@ -108,7 +334,7 @@ int activate()
 	// allocate memory for the images
 	allocate_image(a);
 	allocate_image(b);
-	allocate_image(rgb);
+	allocate_image(rgb1);
 	allocate_image(rgb0);
 	allocate_image(label);
 
@@ -122,7 +348,7 @@ int deactivate()
 	// free the image memory before the program completes
 	free_image(a);
 	free_image(b);
-	free_image(rgb);
+	free_image(rgb1);
 	free_image(rgb0);
 	free_image(label);
 
@@ -133,18 +359,16 @@ int deactivate()
 int find_object(i2byte &nlabel)
 // find an object
 { 
-	cout << "\npress space to get an image";
-	pause();
 
-	acquire_image(rgb0,cam_number); // acquire an image from a video source (RGB format)
+
+	acquire_image(rgb0, cam_number); // acquire an image from a video source (RGB format)
+
 
 	// label objects in the image
 	label_objects(tvalue);
 
 	// select an object from the binary image
 	select_object(nlabel,label,a,b);
-
-	cout << "\nobject # = " << nlabel;
 
 	return 0; // no errors
 }
@@ -169,18 +393,19 @@ int select_object(i2byte &nlabel, image &label, image &a, image &b)
 	while(1) {
 		
 		// acquire image
-		acquire_image(rgb0,cam_number);
+		
+		acquire_image(rgb0, cam_number); // acquire an image from a video source (RGB format)
 
 		// label objects
 		label_objects(tvalue);
 
 		copy(a,b); // threshold image is in a
 		draw_point(b,i,j,128); // draw the new point
-		copy(b,rgb);
+		copy(b,rgb1);
 
-		draw_point_rgb(rgb,i,j,0,0,255);
-		draw_point_rgb(rgb,320,240,0,255,0);
-		view_rgb_image(rgb);
+		draw_point_rgb(rgb1,i,j,0,0,255);
+		draw_point_rgb(rgb1,320,240,0,255,0);
+		view_rgb_image(rgb1);
 
 		// read the keyboard if a key is pressed
 		if( KEY(VK_UP) ) j+=3; // up key
@@ -281,17 +506,19 @@ int track_object(i2byte nlabel)
 		// draw a point at centroid location (ic,jc) with intensity 128
 		copy(rgb0,b);
 //		draw_point(b,(int)ic,(int)jc,255);
-		copy(b,rgb);    // convert to RGB image format
+		copy(b,rgb1);    // convert to RGB image format
 
-		draw_point_rgb(rgb,(int)ic,(int)jc,0,0,255);
-		draw_point_rgb(rgb,320,240,0,255,0);
-		view_rgb_image(rgb);
+		draw_point_rgb(rgb1,(int)ic,(int)jc,0,0,255);
+		draw_point_rgb(rgb1,320,240,0,255,0);
+		view_rgb_image(rgb1);
 
 		// read the keyboard if a key is pressed
 		if( KEY('X') ) break;
 
 		// acquire an image from a video source (RGB format)
-		acquire_image(rgb0,cam_number);
+		
+		acquire_image(rgb0, cam_number); // acquire an image from a video source (RGB format)
+
 
 		// label objects
 		label_objects(tvalue);
