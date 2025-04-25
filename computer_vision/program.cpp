@@ -29,6 +29,7 @@ int activate();
 int deactivate();
 int run_sim();
 int run_vision();
+int run_test();
 int find_object(i2byte &nlabel);
 int select_object(i2byte &nlabel, image &label, image &a, image &b);
 int search_object(i2byte &nlabel, image &label, int is, int js);
@@ -49,7 +50,6 @@ int cam_number = 0;
 
 int main()
 { 
-	i2byte nlabel;
 
 	activate_vision();
 
@@ -57,7 +57,7 @@ int main()
 	// create some images for processing
 	activate();
 	 
-	cout << "\nSelect module to run: \n1 - Simulator \n2 - Hardware \n";
+	cout << "\nSelect module to run: \n1 - Simulator \n2 - Hardware \n3 - Test";
 	cin >> mod;
 	
 	if (mod == 1) {
@@ -66,7 +66,6 @@ int main()
 
 		run_sim();
 		
-		return 0;
 	}
 	else if (mod == 2) {
 
@@ -74,8 +73,13 @@ int main()
 		pause();
 		
 		run_vision();
+	}
+	else if (mod == 3) {
+		cout << "\npress space key to begin program.";
+		pause();
+		
+		run_test();
 
-		return 0;
 	}
 	
 
@@ -88,6 +92,91 @@ int main()
 	pause();
 
  	return 0; // no errors
+}
+
+int run_test() {
+
+	int nlabels;
+	double ic, jc;
+
+	load_rgb_image("output.bmp", rgb0);
+	view_rgb_image(rgb0);
+	cout << "\ntest image rgb";
+	pause();
+
+	copy(rgb0, a);
+
+	copy(a, rgb0);    // convert to RGB image format
+	view_rgb_image(rgb0);
+	cout << "\ntest image greyscale";
+
+	scale(a, b);
+	copy(b, a); // put result back into image a
+
+	copy(a, rgb0);    // convert to RGB image format
+	view_rgb_image(rgb0);
+	cout << "\nimage scale function is applied";
+	pause();
+
+	lowpass_filter(a, b);
+	copy(b, a);
+	copy(a, rgb0);
+	view_rgb_image(rgb0);
+	cout << "\nimage after filter function is applied";
+	pause();
+
+	threshold(a, b, 70);
+	copy(b, a);
+	copy(a, rgb0); // convert to RGB image format
+	view_rgb_image(rgb0);
+	cout << "\nimage after threshold function is applied";
+	pause();
+
+	invert(a, b);
+	copy(b, a);
+
+	copy(a, rgb0);    // convert to RGB image format
+	view_rgb_image(rgb0);
+	cout << "\nimage after invert function is applied";
+	pause();
+
+	erode(a, b);
+	copy(b, a);
+
+	copy(a, rgb0);    // convert to RGB image format
+	view_rgb_image(rgb0);
+	cout << "\nimage after erosion function is applied";
+	pause();
+
+	dialate(a, b);
+	copy(b, a);
+
+	dialate(a, b);
+	copy(b, a);
+
+	copy(a, rgb0);    // convert to RGB image format
+	view_rgb_image(rgb0);
+	cout << "\nimage after dialation function is applied";
+	pause();
+
+	label_image(a, label, nlabels);
+	for (int i = 1; i <= nlabels; i++)
+	{
+		centroid(a, label, i, ic, jc);
+		cout << "\ncentroid: ic = " << ic << " jc = " << jc;
+
+		// convert to RGB image format
+		copy(a, rgb0);
+
+		// mark the centroid point on the image with a blue point
+		draw_point_rgb(rgb0, (int)ic, (int)jc, 0, 0, 255);
+
+		view_rgb_image(rgb0);
+		cout << "\nimage after a centroid is marked.";
+		pause();
+	}
+	
+	return 0;
 }
 
 int run_sim() {
@@ -182,9 +271,12 @@ int run_sim() {
 	i2byte* pl;
 	int i, j;
 
-	// start in the image
-	i = 200;
-	j = 300;
+	double ic = 200.0, jc = 300.0;
+
+	// initial simulation setup
+	acquire_image_sim(rgb0);
+	label_objects(tvalue);
+	centroid(a, label, 2, ic, jc);
 
 	while (1) {
 
@@ -192,7 +284,7 @@ int run_sim() {
 		//		update_obstacles();
 
 				// simulates the robots and acquires the image from simulation
-		acquire_image_sim(rgb1);
+		acquire_image_sim(rgb0);
 
 		//		update_image(rgb);
 
@@ -266,9 +358,16 @@ int run_sim() {
 		// - adjusting it might improve performance / reduce delays
 		// -- see "image_transfer.h" for more details
 		v_mode = 1;
-
-		//select object function for simulator
-		view_rgb_image(rgb1, v_mode);
+		
+		
+		label_objects(tvalue);
+		search_object(nlabel, label, (int)ic, (int)jc);
+		centroid(a, label, nlabel, ic, jc);
+		copy(a, b);
+		draw_point(b, ic, jc, 128);
+		copy(b, rgb0);
+		draw_point_rgb(rgb0, ic, jc, 0, 0, 255);
+		view_rgb_image(rgb0, v_mode);
 
 
 		// * I removed the Sleep / delay function call below to 
