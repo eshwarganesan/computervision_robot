@@ -30,11 +30,11 @@ int deactivate();
 int run_sim();
 int run_vision();
 int run_test();
-int find_object(i2byte &nlabel);
 int select_object(i2byte &nlabel, image &label, image &a, image &b);
 int search_object(i2byte &nlabel, image &label, int is, int js);
-int track_object(i2byte nlabel);
+int track_object(i2byte nlabel, double &ic, double &jc);
 int label_objects(int tvalue);
+void handle_keyboard_input(double dpw, int& pw_l, int& pw_r);
 
 // declare some global image structures (globals are bad, but easy)
 image a,b,rgb1;
@@ -57,7 +57,7 @@ int main()
 	// create some images for processing
 	activate();
 	 
-	cout << "\nSelect module to run: \n1 - Simulator \n2 - Hardware \n3 - Test";
+	cout << "\nSelect module to run: \n1 - Simulator \n2 - Hardware \n3 - Test\n";
 	cin >> mod;
 	
 	if (mod == 1) {
@@ -194,6 +194,7 @@ int run_sim() {
 	i2byte nlabel{};
 	bool selecting = true;
 
+	//-----------------------------Initialization-------------------------------------------//
 	width1 = 640;
 	height1 = 480;
 
@@ -268,8 +269,7 @@ int run_sim() {
 	tc0 = high_resolution_time();
 	double dpw = 500;
 
-	i2byte* pl;
-	int i, j;
+	//-------------------------------------------------------------------------------//
 
 	double ic = 200.0, jc = 300.0;
 
@@ -291,28 +291,6 @@ int run_sim() {
 		tc = high_resolution_time() - tc0;
 
 		// fire laser
-		if (tc > 1) laser = 1;
-
-		if (tc > 9) laser_o = 1;
-
-		if ((tc > 1.5) && !capture) {
-			save_rgb_image("output.bmp", rgb1);
-			capture = 1;
-		}
-
-		// turn off the lasers so we can fire it again later
-		if (tc > 10) {
-			laser = 0;
-			laser_o = 0;
-		}
-
-		// fire laser at tc = 14 s
-		if (tc > 14) {
-			laser = 1;
-
-			// turn laser angle alpha at the same time
-			pw_laser = 1000;
-		}
 
 		// change the inputs to move the robot around
 
@@ -326,25 +304,7 @@ int run_sim() {
 		// max_speed -- pixels/s for right and left wheels
 
 
-		if (KEY('I')) { // forwards
-			pw_l_o = 1500 - dpw;
-			pw_r_o = 1500 + dpw;
-		}
-
-		if (KEY('K')) { // backwards
-			pw_l_o = 1500 + dpw;
-			pw_r_o = 1500 - dpw;
-		}
-
-		if (KEY('J')) { // CCW
-			pw_l_o = 1500 + dpw;
-			pw_r_o = 1500 + dpw;
-		}
-
-		if (KEY('L')) { // CW
-			pw_l_o = 1500 - dpw;
-			pw_r_o = 1500 - dpw;
-		}
+		handle_keyboard_input(dpw, pw_l_o, pw_r_o);
 
 		// manually set opponent inputs for the simulation
 		// -- good for testing your program
@@ -359,16 +319,11 @@ int run_sim() {
 		// -- see "image_transfer.h" for more details
 		v_mode = 1;
 		
-		
-		label_objects(tvalue);
-		search_object(nlabel, label, (int)ic, (int)jc);
-		centroid(a, label, nlabel, ic, jc);
-		copy(a, b);
-		draw_point(b, ic, jc, 128);
-		copy(b, rgb0);
-		draw_point_rgb(rgb0, ic, jc, 0, 0, 255);
+		track_object(nlabel, ic, jc);
+	
 		view_rgb_image(rgb0, v_mode);
 
+		if (KEY('X')) break;
 
 		// * I removed the Sleep / delay function call below to 
 		// improve performance / reduce delays, especially with 
@@ -386,6 +341,10 @@ int run_vision() {
 
 	int width, height;
 	i2byte nlabel;
+	double ic, jc;
+
+	ic = 200;
+	jc = 300;
 
 	// set camera number (normally 0 or 1)
 	cam_number = 0;
@@ -399,9 +358,18 @@ int run_vision() {
 	// label objects in the image
 	label_objects(tvalue);
 
+	// object selection
 	select_object(nlabel, label, a, b);
 
-	track_object(nlabel);
+	// tracking
+	centroid(a, label, nlabel, ic, jc);
+
+	while (1) {
+		track_object(nlabel, ic, jc);
+		view_rgb_image(rgb0, 0);
+		if (KEY('X')) break;
+	}
+	
 
 	return 0;
 }
@@ -450,24 +418,6 @@ int deactivate()
 	free_image(rgb1);
 	free_image(rgb0);
 	free_image(label);
-
-	return 0; // no errors
-}
-
-
-int find_object(i2byte &nlabel)
-// find an object
-{ 
-
-
-	acquire_image(rgb0, cam_number); // acquire an image from a video source (RGB format)
-
-
-	// label objects in the image
-	label_objects(tvalue);
-
-	// select an object from the binary image
-	select_object(nlabel,label,a,b);
 
 	return 0; // no errors
 }
@@ -580,49 +530,13 @@ int search_object(i2byte &nlabel, image &label, int is, int js)
 }
 
 
-int track_object(i2byte nlabel)
+int track_object(i2byte nlabel, double &ic, double &jc)
 {
-	int i=0;
-	double ic=200.0,jc=300.0;
-	
-	cout << "\n\nnow tracking the object.";
-	cout << "\nif the object moves the centroid marker";
-	cout << "\nwill follow the object.";
 
-	// compute the centroid of the object
-	centroid(a,label,nlabel,ic,jc);
-	
-	while(1) {
-		i++;
-
-		// search for an object at the last known centroid location
-		search_object(nlabel,label,(int)ic,(int)jc);
-
-		// compute the centroid of the object
-		centroid(a,label,nlabel,ic,jc);
-		cout << "\ncentroid: ic = " << ic << " " << jc;
-
-		// draw a point at centroid location (ic,jc) with intensity 128
-		copy(rgb0,b);
-//		draw_point(b,(int)ic,(int)jc,255);
-		copy(b,rgb1);    // convert to RGB image format
-
-		draw_point_rgb(rgb1,(int)ic,(int)jc,0,0,255);
-		draw_point_rgb(rgb1,320,240,0,255,0);
-		view_rgb_image(rgb1);
-
-		// read the keyboard if a key is pressed
-		if( KEY('X') ) break;
-
-		// acquire an image from a video source (RGB format)
-		
-		acquire_image(rgb0, cam_number); // acquire an image from a video source (RGB format)
-
-
-		// label objects
-		label_objects(tvalue);
-
-	} // end while
+	label_objects(tvalue);
+	search_object(nlabel, label, (int)ic, (int)jc);
+	centroid(a, label, nlabel, ic, jc);
+	draw_point_rgb(rgb0, ic, jc, 0, 0, 255);
 
 	return 0; // no errors
 }
@@ -658,3 +572,9 @@ int label_objects(int tvalue)
 	return 0; // no errors
 }
 
+void handle_keyboard_input(double dpw, int& pw_l, int& pw_r) {
+	if (KEY('I')) { pw_l = 1500 - dpw; pw_r = 1500 + dpw; }
+	if (KEY('K')) { pw_l = 1500 + dpw; pw_r = 1500 - dpw; }
+	if (KEY('J')) { pw_l = 1500 + dpw; pw_r = 1500 + dpw; }
+	if (KEY('L')) { pw_l = 1500 - dpw; pw_r = 1500 - dpw; }
+}
