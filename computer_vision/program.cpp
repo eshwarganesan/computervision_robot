@@ -35,6 +35,8 @@ int search_object(i2byte &nlabel, image &label, int is, int js);
 int track_object(i2byte nlabel, double &ic, double &jc);
 int label_objects(int tvalue);
 void handle_keyboard_input(double dpw, int& pw_l, int& pw_r);
+void calculate_HSV(int R, int G, int B, double& hue, double& sat, double& value);
+int filter_color(image &a, image &b, double hue, double sat, double value);
 
 // declare some global image structures (globals are bad, but easy)
 image a,b,rgb1;
@@ -104,6 +106,10 @@ int run_test() {
 	cout << "\ntest image rgb";
 	pause();
 
+	filter_color(rgb0, rgb1, 159.0, 0.6, 0.69);
+
+	view_rgb_image(rgb1);
+	/*
 	copy(rgb0, a);
 
 	copy(a, rgb0);    // convert to RGB image format
@@ -175,7 +181,8 @@ int run_test() {
 		cout << "\nimage after a centroid is marked.";
 		pause();
 	}
-	
+	*/
+
 	return 0;
 }
 
@@ -577,4 +584,88 @@ void handle_keyboard_input(double dpw, int& pw_l, int& pw_r) {
 	if (KEY('K')) { pw_l = 1500 + dpw; pw_r = 1500 - dpw; }
 	if (KEY('J')) { pw_l = 1500 + dpw; pw_r = 1500 + dpw; }
 	if (KEY('L')) { pw_l = 1500 - dpw; pw_r = 1500 - dpw; }
+}
+
+void calculate_HSV(int R, int G, int B, double& hue, double& sat, double& value)
+{
+	double rf = R / 255.0;
+	double gf = G / 255.0;
+	double bf = B / 255.0;
+
+	double max_val = max(rf, max(gf, bf));
+	double min_val = min(rf, min(gf, bf));
+	double delta = max_val - min_val;
+
+	value = max_val;
+
+	if (delta < 1e-6) {
+		hue = 0;
+		sat = 0;
+		return;
+	}
+
+	sat = delta / max_val;
+
+	if (max_val == rf) {
+		hue = 60.0 * (fmod(((gf - bf) / delta), 6.0));
+	}
+	else if (max_val == gf) {
+		hue = 60.0 * (((bf - rf) / delta) + 2.0);
+	}
+	else { // max_val == bf
+		hue = 60.0 * (((rf - gf) / delta) + 4.0);
+	}
+
+	if (hue < 0.0) {
+		hue += 360.0;
+	}
+
+}
+
+int filter_color(image& a, image& b, double hue, double sat, double value) {
+	i4byte size, i;
+	ibyte* pa, * pb, min, max;
+	double h, s, v;
+	int red, green, blue;
+
+	copy(a, b);
+
+	pa = a.pdata;
+	pb = b.pdata;
+
+	if (a.height != b.height || a.width != b.width) {
+		cout << "\nerror in scale: sizes of a, b are not the same!";
+		return 1;
+	}
+	if (a.type != b.type) {
+		cout << "\nerror in scale: types of a, b are not the same!";
+		return 1;
+	}
+	if (a.type != RGB_IMAGE || b.type != RGB_IMAGE) {
+		cout << "\nerror in scale: types of a, b are not the same!";
+		return 1;
+	}
+
+	size = (i4byte)a.width * a.height * 3;
+	for (i = 0; i < size; i += 3) {
+		blue = pa[i];
+		green = pa[i + 1];
+		red = pa[i + 2];
+		
+		
+		calculate_HSV(red, green, blue, h, s, v);
+
+		if (h >= hue - 10 && h <= hue + 10 && s >= sat - 0.1 && s <= sat + 0.1 && v >= value - 0.1 && v <= value + 0.1) {
+			pb[i] = 255;
+			pb[i + 1] = 255;
+			pb[i + 2] = 255;
+		}
+		else {
+			pb[i] = 0;
+			pb[i + 1] = 0;
+			pb[i + 2] = 0;
+		}
+		
+	}
+
 }
