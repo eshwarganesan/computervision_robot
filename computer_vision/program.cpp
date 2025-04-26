@@ -36,7 +36,8 @@ int track_object(i2byte nlabel, double &ic, double &jc);
 int label_objects(int tvalue);
 void handle_keyboard_input(double dpw, int& pw_l, int& pw_r);
 void calculate_HSV(int R, int G, int B, double& hue, double& sat, double& value);
-int filter_color(image &a, image &b, double hue, double sat, double value);
+int filter_color(image &a, image &b, double hue, double sat, double value, double htol, double stol, double vtol);
+int object_area(image& label, int nlabel);
 
 // declare some global image structures (globals are bad, but easy)
 image a,b,rgb1;
@@ -106,51 +107,51 @@ int run_test() {
 	cout << "\ntest image rgb";
 	pause();
 
-	filter_color(rgb0, rgb1, 159.0, 0.6, 0.69);
+	filter_color(rgb0, rgb1, 159.0, 0.6, 0.69, 10, 0.2, 0.2);
 
 	view_rgb_image(rgb1);
-	/*
-	copy(rgb0, a);
+	///*
+	copy(rgb1, a);
 
-	copy(a, rgb0);    // convert to RGB image format
-	view_rgb_image(rgb0);
+	copy(a, rgb1);    // convert to RGB image format
+	view_rgb_image(rgb1);
 	cout << "\ntest image greyscale";
 
 	scale(a, b);
 	copy(b, a); // put result back into image a
 
-	copy(a, rgb0);    // convert to RGB image format
-	view_rgb_image(rgb0);
+	copy(a, rgb1);    // convert to RGB image format
+	view_rgb_image(rgb1);
 	cout << "\nimage scale function is applied";
 	pause();
 
 	lowpass_filter(a, b);
 	copy(b, a);
-	copy(a, rgb0);
-	view_rgb_image(rgb0);
+	copy(a, rgb1);
+	view_rgb_image(rgb1);
 	cout << "\nimage after filter function is applied";
 	pause();
 
 	threshold(a, b, 70);
 	copy(b, a);
-	copy(a, rgb0); // convert to RGB image format
-	view_rgb_image(rgb0);
+	copy(a, rgb1); // convert to RGB image format
+	view_rgb_image(rgb1);
 	cout << "\nimage after threshold function is applied";
 	pause();
 
 	invert(a, b);
 	copy(b, a);
 
-	copy(a, rgb0);    // convert to RGB image format
-	view_rgb_image(rgb0);
+	copy(a, rgb1);    // convert to RGB image format
+	view_rgb_image(rgb1);
 	cout << "\nimage after invert function is applied";
 	pause();
 
 	erode(a, b);
 	copy(b, a);
 
-	copy(a, rgb0);    // convert to RGB image format
-	view_rgb_image(rgb0);
+	copy(a, rgb1);    // convert to RGB image format
+	view_rgb_image(rgb1);
 	cout << "\nimage after erosion function is applied";
 	pause();
 
@@ -160,8 +161,8 @@ int run_test() {
 	dialate(a, b);
 	copy(b, a);
 
-	copy(a, rgb0);    // convert to RGB image format
-	view_rgb_image(rgb0);
+	copy(a, rgb1);    // convert to RGB image format
+	view_rgb_image(rgb1);
 	cout << "\nimage after dialation function is applied";
 	pause();
 
@@ -172,16 +173,19 @@ int run_test() {
 		cout << "\ncentroid: ic = " << ic << " jc = " << jc;
 
 		// convert to RGB image format
-		copy(a, rgb0);
+		copy(a, rgb1);
 
 		// mark the centroid point on the image with a blue point
-		draw_point_rgb(rgb0, (int)ic, (int)jc, 0, 0, 255);
+		draw_point_rgb(rgb1, (int)ic, (int)jc, 0, 0, 255);
 
-		view_rgb_image(rgb0);
+		view_rgb_image(rgb1);
 		cout << "\nimage after a centroid is marked.";
+
+		int a = object_area(label, i);
+		cout << "\nobject area = " << a;
 		pause();
 	}
-	*/
+	//*/
 
 	return 0;
 }
@@ -622,7 +626,7 @@ void calculate_HSV(int R, int G, int B, double& hue, double& sat, double& value)
 
 }
 
-int filter_color(image& a, image& b, double hue, double sat, double value) {
+int filter_color(image& a, image& b, double hue, double sat, double value, double htol, double stol, double vtol) {
 	i4byte size, i;
 	ibyte* pa, * pb, min, max;
 	double h, s, v;
@@ -655,17 +659,30 @@ int filter_color(image& a, image& b, double hue, double sat, double value) {
 		
 		calculate_HSV(red, green, blue, h, s, v);
 
-		if (h >= hue - 10 && h <= hue + 10 && s >= sat - 0.1 && s <= sat + 0.1 && v >= value - 0.1 && v <= value + 0.1) {
+		if (h >= hue - htol && h <= hue + htol && s >= sat - stol && s <= sat + stol && v >= value - vtol && v <= value + vtol) {
+			continue;
+		}
+		else {
 			pb[i] = 255;
 			pb[i + 1] = 255;
 			pb[i + 2] = 255;
 		}
-		else {
-			pb[i] = 0;
-			pb[i + 1] = 0;
-			pb[i + 2] = 0;
-		}
 		
 	}
 
+}
+
+int object_area(image& label, int nlabel) {
+	ibyte* pl;
+	i4byte size, i;
+
+	int area = 0;
+	pl = label.pdata;
+
+	size = label.height * label.width;
+	for (i = 0; i < size; i++) {
+		if (pl[i] == nlabel) area++;
+	}
+
+	return area;
 }
