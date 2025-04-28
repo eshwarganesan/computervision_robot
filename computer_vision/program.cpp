@@ -44,7 +44,7 @@ image a,b,rgb1;
 image rgb0; // original image before processing
 image label;
 
-int	tvalue = 79; // threshold value
+int	tvalue = 200; // threshold value
 
 const int IMAGE_WIDTH = 640;
 const int IMAGE_HEIGHT = 480;
@@ -102,14 +102,22 @@ int run_test() {
 	int nlabels;
 	double ic, jc;
 
-	load_rgb_image("output.bmp", rgb0);
-	view_rgb_image(rgb0);
+	load_rgb_image("output.bmp", rgb1);
+	view_rgb_image(rgb1);
 	cout << "\ntest image rgb";
 	pause();
 
-	filter_color(rgb0, rgb1, 159.0, 0.6, 0.69, 10, 0.2, 0.2);
-
+	//filter_color(rgb0, rgb1, 5.0, 0.7, 0.88, 5.0, 0.1, 0.1);
+	/*
+	filter_color(rgb0, rgb1, 153.0, 0.6, 0.7, 5.0, 0.1, 0.1);
+	copy(rgb1, rgb0);
+	view_rgb_image(rgb0);
+	pause();
+	nlabels = label_objects(tvalue);
+	copy(a, rgb1);
 	view_rgb_image(rgb1);
+	*/
+
 	///*
 	copy(rgb1, a);
 
@@ -132,7 +140,7 @@ int run_test() {
 	cout << "\nimage after filter function is applied";
 	pause();
 
-	threshold(a, b, 70);
+	threshold(a, b, 200);
 	copy(b, a);
 	copy(a, rgb1); // convert to RGB image format
 	view_rgb_image(rgb1);
@@ -165,28 +173,35 @@ int run_test() {
 	view_rgb_image(rgb1);
 	cout << "\nimage after dialation function is applied";
 	pause();
+	
 
 	label_image(a, label, nlabels);
+	//*/
+	/*
 	for (int i = 1; i <= nlabels; i++)
 	{
-		centroid(a, label, i, ic, jc);
-		cout << "\ncentroid: ic = " << ic << " jc = " << jc;
+		int area = object_area(label, i);
+		if (area >= 700 && area <= 4000) {
+			
+			centroid(a, label, i, ic, jc);
+			cout << "\ncentroid: ic = " << ic << " jc = " << jc;
 
-		// convert to RGB image format
-		copy(a, rgb1);
+			// convert to RGB image format
+			copy(a, rgb1);
 
-		// mark the centroid point on the image with a blue point
-		draw_point_rgb(rgb1, (int)ic, (int)jc, 0, 0, 255);
+			// mark the centroid point on the image with a blue point
+			draw_point_rgb(rgb1, (int)ic, (int)jc, 0, 0, 255);
 
-		view_rgb_image(rgb1);
-		cout << "\nimage after a centroid is marked.";
+			view_rgb_image(rgb1);
+			cout << "\nimage after a centroid is marked.";
 
-		int a = object_area(label, i);
-		cout << "\nobject area = " << a;
-		pause();
+
+			cout << "\nobject area = " << area;
+			pause();
+		}
 	}
-	//*/
-
+	
+	*/
 	return 0;
 }
 
@@ -285,9 +300,33 @@ int run_sim() {
 	double ic = 200.0, jc = 300.0;
 
 	// initial simulation setup
-	acquire_image_sim(rgb0);
-	label_objects(tvalue);
-	centroid(a, label, 2, ic, jc);
+	acquire_image_sim(rgb1);
+
+	//find green centroid on robot
+	//filter_color(rgb1, rgb0, 5.0, 0.65, 0.89, 2, 0.05, 0.05);  // RED
+	filter_color(rgb1, rgb0, 153.0, 0.6, 0.7, 5.0, 0.1, 0.1); // GREEN
+	int nlabels = label_objects(tvalue);
+	int area;
+	for (int i = 1; i <= nlabels; i++) {
+		area = object_area(label, i);
+		cout << "\narea of object" << area;
+		cout << "\nlabel " << i;
+		///*
+		if (area >= 700 && area <= 4000) {
+			centroid(a, label, i, ic, jc);
+			break;
+		}
+		//*/
+		/*
+		if (area <= 700) {
+			centroid(a, label, i, ic, jc);
+			break;
+		}
+		*/
+	}
+	view_rgb_image(rgb0);
+	cout << "\nObject detected";
+	pause();
 
 	while (1) {
 
@@ -580,7 +619,7 @@ int label_objects(int tvalue)
 	// labels go from 1 to nlabels
 	label_image(a,label,nlabels);
 
-	return 0; // no errors
+	return nlabels; // no errors
 }
 
 void handle_keyboard_input(double dpw, int& pw_l, int& pw_r) {
