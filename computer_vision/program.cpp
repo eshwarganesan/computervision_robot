@@ -1,5 +1,6 @@
 
 #include <cstdio>
+#include <cmath>
 #include <cstdlib>
 #include <iostream>
 #include <fstream>
@@ -38,6 +39,9 @@ void handle_keyboard_input(double dpw, int& pw_l, int& pw_r);
 void calculate_HSV(int R, int G, int B, double& hue, double& sat, double& value);
 int filter_color(image &a, image &b, double hue, double sat, double value, double htol, double stol, double vtol);
 int object_area(image& label, int nlabel);
+double get_orientation(double front_ic, double front_jc, double back_ic, double back_jc);
+int get_front_centroid(double& front_x, double& front_y);
+int get_back_centroid(double& back_x, double& back_y);
 
 // declare some global image structures (globals are bad, but easy)
 image a,b,rgb1;
@@ -108,17 +112,70 @@ int run_test() {
 	pause();
 
 	//filter_color(rgb0, rgb1, 5.0, 0.7, 0.88, 5.0, 0.1, 0.1);
-	/*
-	filter_color(rgb0, rgb1, 153.0, 0.6, 0.7, 5.0, 0.1, 0.1);
-	copy(rgb1, rgb0);
+	///*
+	filter_color(rgb1, rgb0, 153.0, 0.6, 0.7, 5.0, 0.1, 0.1);
 	view_rgb_image(rgb0);
 	pause();
 	nlabels = label_objects(tvalue);
-	copy(a, rgb1);
-	view_rgb_image(rgb1);
-	*/
+	copy(a, rgb0);
+	view_rgb_image(rgb0);
 
-	///*
+	for (int i = 1; i <= nlabels; i++)
+	{
+		int area = object_area(label, i);
+		if (area >= 700 && area <= 4000) {
+
+			centroid(a, label, i, ic, jc);
+			cout << "\ncentroid: ic = " << ic << " jc = " << jc;
+
+			// convert to RGB image format
+			copy(a, rgb0);
+
+			// mark the centroid point on the image with a blue point
+			draw_point_rgb(rgb0, (int)ic, (int)jc, 0, 0, 255);
+
+			view_rgb_image(rgb0);
+			cout << "\nimage after a centroid is marked.";
+
+
+			cout << "\nobject area = " << area;
+			pause();
+		}
+	}
+
+
+	//*/
+
+	filter_color(rgb1, rgb0, 5.0, 0.7, 0.88, 5.0, 0.1, 0.1);
+	view_rgb_image(rgb0);
+	pause();
+	nlabels = label_objects(tvalue);
+	copy(a, rgb0);
+	view_rgb_image(rgb0);
+	for (int i = 1; i <= nlabels; i++)
+	{
+		int area = object_area(label, i);
+		if (area <= 700) {
+
+			centroid(a, label, i, ic, jc);
+			cout << "\ncentroid: ic = " << ic << " jc = " << jc;
+
+			// convert to RGB image format
+			copy(a, rgb0);
+
+			// mark the centroid point on the image with a blue point
+			draw_point_rgb(rgb0, (int)ic, (int)jc, 0, 0, 255);
+
+			view_rgb_image(rgb0);
+			cout << "\nimage after a centroid is marked.";
+
+
+			cout << "\nobject area = " << area;
+			pause();
+		}
+	}
+
+	/*
 	copy(rgb1, a);
 
 	copy(a, rgb1);    // convert to RGB image format
@@ -176,32 +233,11 @@ int run_test() {
 	
 
 	label_image(a, label, nlabels);
-	//*/
-	/*
-	for (int i = 1; i <= nlabels; i++)
-	{
-		int area = object_area(label, i);
-		if (area >= 700 && area <= 4000) {
-			
-			centroid(a, label, i, ic, jc);
-			cout << "\ncentroid: ic = " << ic << " jc = " << jc;
-
-			// convert to RGB image format
-			copy(a, rgb1);
-
-			// mark the centroid point on the image with a blue point
-			draw_point_rgb(rgb1, (int)ic, (int)jc, 0, 0, 255);
-
-			view_rgb_image(rgb1);
-			cout << "\nimage after a centroid is marked.";
-
-
-			cout << "\nobject area = " << area;
-			pause();
-		}
-	}
-	
 	*/
+	///*
+	
+	
+	//*/
 	return 0;
 }
 
@@ -218,7 +254,7 @@ int run_sim() {
 	int capture = 0;
 	int v_mode;
 	i2byte nlabel{};
-	bool selecting = true;
+	double front_x, front_y, back_x, back_y, theta;
 
 	//-----------------------------Initialization-------------------------------------------//
 	width1 = 640;
@@ -296,37 +332,13 @@ int run_sim() {
 	double dpw = 500;
 
 	//-------------------------------------------------------------------------------//
-
+	front_x, front_y, back_x, back_y = 0.0;
 	double ic = 200.0, jc = 300.0;
-
 	// initial simulation setup
 	acquire_image_sim(rgb1);
 
-	//find green centroid on robot
-	//filter_color(rgb1, rgb0, 5.0, 0.65, 0.89, 2, 0.05, 0.05);  // RED
-	filter_color(rgb1, rgb0, 153.0, 0.6, 0.7, 5.0, 0.1, 0.1); // GREEN
-	int nlabels = label_objects(tvalue);
-	int area;
-	for (int i = 1; i <= nlabels; i++) {
-		area = object_area(label, i);
-		cout << "\narea of object" << area;
-		cout << "\nlabel " << i;
-		///*
-		if (area >= 700 && area <= 4000) {
-			centroid(a, label, i, ic, jc);
-			break;
-		}
-		//*/
-		/*
-		if (area <= 700) {
-			centroid(a, label, i, ic, jc);
-			break;
-		}
-		*/
-	}
-	view_rgb_image(rgb0);
-	cout << "\nObject detected";
-	pause();
+	get_front_centroid(front_x, front_y);
+	get_back_centroid(back_x, back_y);
 
 	while (1) {
 
@@ -369,8 +381,16 @@ int run_sim() {
 		// -- see "image_transfer.h" for more details
 		v_mode = 1;
 		
-		track_object(nlabel, ic, jc);
-	
+		track_object(nlabel, front_x, front_y);
+		track_object(nlabel, back_x, back_y);
+		theta = get_orientation(front_x, front_y, back_x, back_y);
+		
+		cout << "\rFront x: " << front_x
+			<< "  Front y: " << front_y
+			<< "  Back x: " << back_x
+			<< "  Back y: " << back_y
+			<< " Theta: " << theta
+			<< flush;
 		view_rgb_image(rgb0, v_mode);
 
 		if (KEY('X')) break;
@@ -724,4 +744,39 @@ int object_area(image& label, int nlabel) {
 	}
 
 	return area;
+}
+
+double get_orientation(double front_ic, double front_jc, double back_ic, double back_jc) {
+	double dx = front_ic - back_ic;
+	double dy = front_jc - back_jc;
+	double theta = atan2(dy, dx);
+	return theta;
+}
+
+int get_front_centroid(double &front_x, double &front_y) {
+	filter_color(rgb1, rgb0, 153.0, 0.6, 0.7, 5.0, 0.1, 0.1); // GREEN
+	int nlabels = label_objects(tvalue);
+	int area;
+	for (int i = 1; i <= nlabels; i++) {
+		area = object_area(label, i);
+		if (area <= 700) {
+			centroid(a, label, i, front_x, front_y);
+			break;
+		}
+	}
+	return 0;
+}
+
+int get_back_centroid(double& back_x, double& back_y) {
+	filter_color(rgb1, rgb0, 5.0, 0.65, 0.89, 2, 0.05, 0.05);  // RED
+	int nlabels = label_objects(tvalue);
+	int area;
+	for (int i = 1; i <= nlabels; i++) {
+		area = object_area(label, i);
+		if (area <= 700) {
+			centroid(a, label, i, back_x, back_y);
+			break;
+		}
+	}
+	return 0;
 }
