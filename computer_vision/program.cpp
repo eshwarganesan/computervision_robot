@@ -421,7 +421,10 @@ int run_sim() {
 			<< flush;
 		*/
 		if (check_collision(front_x, front_y, back_x, back_y, sim_robot_length, sim_robot_width, x_obs, y_obs, r_obs, N_obs)) {
-			cout << "\nCollision detected!";
+			cout << "\rCollision detected!" << flush;
+		}
+		else {
+			cout << "\rNo Collision detected!" << flush;
 		}
 		view_rgb_image(rgb0, v_mode);
 
@@ -824,49 +827,50 @@ bool check_collision(double front_x, double front_y, double back_x, double back_
 
 	double cos_theta = cos(theta);
 	double sin_theta = sin(theta);
-	double perp_x = -sin_theta;
-	double perp_y = cos_theta;
 
-	// Estimate AABB from the four rotated corners (bounding box around rotated rectangle)
-	double x_vals[4] = {
-		x_center + half_L * cos_theta + half_W * perp_x,
-		x_center + half_L * cos_theta - half_W * perp_x,
-		x_center - half_L * cos_theta - half_W * perp_x,
-		x_center - half_L * cos_theta + half_W * perp_x
+	// Check edge collision using actual rectangle corners
+	double corner_offsets[4][2] = {
+		{ half_L,  half_W},
+		{ half_L, -half_W},
+		{-half_L, -half_W},
+		{-half_L,  half_W}
 	};
 
-	double y_vals[4] = {
-		y_center + half_L * sin_theta + half_W * perp_y,
-		y_center + half_L * sin_theta - half_W * perp_y,
-		y_center - half_L * sin_theta - half_W * perp_y,
-		y_center - half_L * sin_theta + half_W * perp_y
-	};
+	for (int i = 0; i < 4; i++) {
+		double dx = corner_offsets[i][0];
+		double dy = corner_offsets[i][1];
 
-	double xmin = *min_element(x_vals, x_vals + 4);
-	double xmax = *max_element(x_vals, x_vals + 4);
-	double ymin = *min_element(y_vals, y_vals + 4);
-	double ymax = *max_element(y_vals, y_vals + 4);
+		double x = x_center + dx * cos_theta - dy * sin_theta;
+		double y = y_center + dx * sin_theta + dy * cos_theta;
 
-	// Check edge collisions using bounding box
-	if (xmin < 0 || xmax >= IMAGE_WIDTH || ymin < 0 || ymax >= IMAGE_HEIGHT) {
-		return true;
+		if (x < 0 || x >= IMAGE_WIDTH || y < 0 || y >= IMAGE_HEIGHT) {
+			return true; // collision with edge
+		}
 	}
 
-
-
-	// Check obstacle collisions
+	// Check obstacle collisions using full rotated rectangle test
 	for (int i = 0; i < N_OBS; ++i) {
 		double xo = obstacle_x[i];
 		double yo = obstacle_y[i];
 		double ro = obstacle_r[i];
 
-		double x_closest = max(xmin, min(xo, xmax));
-		double y_closest = max(ymin, min(yo, ymax));
+		// Translate obstacle into robot-centered coordinates
+		double dx = xo - x_center;
+		double dy = yo - y_center;
 
-		double dx = xo - x_closest;
-		double dy = yo - y_closest;
+		// Rotate into robot's local (unrotated) frame
+		double xr = dx * cos_theta + dy * sin_theta;
+		double yr = -dx * sin_theta + dy * cos_theta;
 
-		if ((dx * dx + dy * dy) <= (ro * ro)) {
+		// Clamp circle center to rectangle bounds
+		double x_closest = max(-half_L, min(xr, half_L));
+		double y_closest = max(-half_W, min(yr, half_W));
+
+		// Distance from obstacle to closest point
+		double ddx = xr - x_closest;
+		double ddy = yr - y_closest;
+
+		if ((ddx * ddx + ddy * ddy) <= (ro * ro)) {
 			return true; // collision with circular obstacle
 		}
 	}
