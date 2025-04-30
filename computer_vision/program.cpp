@@ -55,8 +55,8 @@ const int IMAGE_WIDTH = 640;
 const int IMAGE_HEIGHT = 480;
 int mod;
 int cam_number = 0;
-double sim_robot_width = 105;
-double sim_robot_length = 152;
+double sim_robot_width = 52.5;
+double sim_robot_length = 71.0;
 
 int main()
 { 
@@ -792,33 +792,41 @@ int get_back_centroid(double& back_x, double& back_y) {
 	return 0;
 }
 
-bool check_collision(double front_x, double front_y, double back_x, double back_y, double L, double W, image& label) {
+bool check_collision(double front_x, double front_y, double back_x, double back_y, double half_L, double half_W, image& label) {
 	double x_center = (front_x + back_x) / 2.0;
 	double y_center = (front_y + back_y) / 2.0;
 	double theta = atan2(front_y - back_y, front_x - back_x);
-
-	double half_L = L / 2.0;
-	double half_W = W / 2.0;
 
 	double cos_theta = cos(theta);
 	double sin_theta = sin(theta);
 	double perp_x = -sin_theta;
 	double perp_y = cos_theta;
 
-	double corners[4][2] = {
-		{x_center + half_L * cos_theta + half_W * perp_x, y_center + half_L * sin_theta + half_W * perp_y},
-		{x_center + half_L * cos_theta - half_W * perp_x, y_center + half_L * sin_theta - half_W * perp_y},
-		{x_center - half_L * cos_theta - half_W * perp_x, y_center - half_L * sin_theta - half_W * perp_y},
-		{x_center - half_L * cos_theta + half_W * perp_x, y_center - half_L * sin_theta + half_W * perp_y}
+	// Estimate AABB from the four rotated corners (bounding box around rotated rectangle)
+	double x_vals[4] = {
+		x_center + half_L * cos_theta + half_W * perp_x,
+		x_center + half_L * cos_theta - half_W * perp_x,
+		x_center - half_L * cos_theta - half_W * perp_x,
+		x_center - half_L * cos_theta + half_W * perp_x
 	};
 
-	// Check edge collisions
-	for (int i = 0; i < 4; i++) {
-		if (corners[i][0] < 0 || corners[i][0] >= IMAGE_WIDTH ||
-			corners[i][1] < 0 || corners[i][1] >= IMAGE_HEIGHT) {
-			return true; // Collision with edge
-		}
+	double y_vals[4] = {
+		y_center + half_L * sin_theta + half_W * perp_y,
+		y_center + half_L * sin_theta - half_W * perp_y,
+		y_center - half_L * sin_theta - half_W * perp_y,
+		y_center - half_L * sin_theta + half_W * perp_y
+	};
+
+	double xmin = *min_element(x_vals, x_vals + 4);
+	double xmax = *max_element(x_vals, x_vals + 4);
+	double ymin = *min_element(y_vals, y_vals + 4);
+	double ymax = *max_element(y_vals, y_vals + 4);
+
+	// Check edge collisions using bounding box
+	if (xmin < 0 || xmax >= IMAGE_WIDTH || ymin < 0 || ymax >= IMAGE_HEIGHT) {
+		return true;
 	}
+
 
 
 	/* Check obstacle collisions
