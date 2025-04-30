@@ -42,7 +42,7 @@ int object_area(image& label, int nlabel);
 double get_orientation(double front_ic, double front_jc, double back_ic, double back_jc);
 int get_front_centroid(double& front_x, double& front_y);
 int get_back_centroid(double& back_x, double& back_y);
-bool check_collision(double front_x, double front_y, double back_x, double back_y, double L, double W, image& label);
+bool check_collision(double front_x, double front_y, double back_x, double back_y, double L, double W, const double* obstacle_x, const double* obstacle_y, const double* obstacle_r, int N_OBS);
 
 // declare some global image structures (globals are bad, but easy)
 image a,b,rgb1;
@@ -56,7 +56,7 @@ const int IMAGE_HEIGHT = 480;
 int mod;
 int cam_number = 0;
 double sim_robot_width = 52.5;
-double sim_robot_length = 71.0;
+double sim_robot_length = 61.0;
 
 int main()
 { 
@@ -109,13 +109,13 @@ int run_test() {
 	int nlabels;
 	double ic, jc;
 
-	load_rgb_image("output.bmp", rgb0);
-	view_rgb_image(rgb0);
+	load_rgb_image("output.bmp", rgb1);
+	view_rgb_image(rgb1);
 	cout << "\ntest image rgb";
 	pause();
 
 	//filter_color(rgb0, rgb1, 5.0, 0.7, 0.88, 5.0, 0.1, 0.1);
-	filter_color(rgb0, rgb1, 153.0, 0.6, 0.7, 5.0, 0.1, 0.1);
+	//filter_color(rgb0, rgb1, 153.0, 0.6, 0.7, 5.0, 0.1, 0.1);
 	/*
 	
 	view_rgb_image(rgb0);
@@ -238,6 +238,25 @@ int run_test() {
 
 	label_image(a, label, nlabels);
 	//*/
+	for (int i = 1; i <= nlabels; i++)
+	{
+
+		centroid(a, label, i, ic, jc);
+		cout << "\ncentroid: ic = " << ic << " jc = " << jc;
+
+		// convert to RGB image format
+		copy(a, rgb1);
+
+		// mark the centroid point on the image with a blue point
+		draw_point_rgb(rgb1, (int)ic, (int)jc, 0, 0, 255);
+
+		view_rgb_image(rgb1);
+		cout << "\nimage after a centroid is marked.";
+
+		int area = object_area(label, i);
+		cout << "\nobject area = " << area;
+		pause();
+	}
 	///*
 	
 	
@@ -250,7 +269,7 @@ int run_sim() {
 	int pw_l, pw_r, pw_laser, laser;
 	double width1, height1;
 	int n_robot;
-	double x_obs[50] = { 0.0 }, y_obs[50] = { 0.0 };
+	double x_obs[50] = { 0.0 }, y_obs[50] = { 0.0 }, r_obs[50] = { 0.0 };
 	double D, Lx, Ly, Ax, Ay, alpha_max;
 	double tc, tc0; // clock time
 	int mode;
@@ -278,6 +297,10 @@ int run_sim() {
 
 	x_obs[1] = 135; // pixels
 	y_obs[1] = 135; // pixels
+
+	r_obs[0] = 35;
+	r_obs[1] = 35;
+
 	D = 121.0;
 
 	Lx = 31.0;
@@ -389,13 +412,15 @@ int run_sim() {
 		track_object(nlabel, back_x, back_y);
 		theta = get_orientation(front_x, front_y, back_x, back_y);
 		
+		/*
 		cout << "\rFront x: " << front_x
 			<< "  Front y: " << front_y
 			<< "  Back x: " << back_x
 			<< "  Back y: " << back_y
 			<< " Theta: " << theta
 			<< flush;
-		if (check_collision(front_x, front_y, back_x, back_y, sim_robot_length, sim_robot_width, label)) {
+		*/
+		if (check_collision(front_x, front_y, back_x, back_y, sim_robot_length, sim_robot_width, x_obs, y_obs, r_obs, N_obs)) {
 			cout << "\nCollision detected!";
 		}
 		view_rgb_image(rgb0, v_mode);
@@ -792,7 +817,7 @@ int get_back_centroid(double& back_x, double& back_y) {
 	return 0;
 }
 
-bool check_collision(double front_x, double front_y, double back_x, double back_y, double half_L, double half_W, image& label) {
+bool check_collision(double front_x, double front_y, double back_x, double back_y, double half_L, double half_W, const double* obstacle_x, const double* obstacle_y, const double* obstacle_r, int N_OBS) {
 	double x_center = (front_x + back_x) / 2.0;
 	double y_center = (front_y + back_y) / 2.0;
 	double theta = atan2(front_y - back_y, front_x - back_x);
@@ -829,19 +854,22 @@ bool check_collision(double front_x, double front_y, double back_x, double back_
 
 
 
-	/* Check obstacle collisions
-	ibyte* pdata = (ibyte*)label.pdata;
-	int stride = label.width;
+	// Check obstacle collisions
+	for (int i = 0; i < N_OBS; ++i) {
+		double xo = obstacle_x[i];
+		double yo = obstacle_y[i];
+		double ro = obstacle_r[i];
 
-	for (int i = 0; i < 4; i++) {
-		int xi = (int)(corners[i].x + 0.5);
-		int yi = (int)(corners[i].y + 0.5);
+		double x_closest = max(xmin, min(xo, xmax));
+		double y_closest = max(ymin, min(yo, ymax));
 
-		if (xi >= 0 && xi < label.width && yi >= 0 && yi < label.height) {
-			int val = pdata[yi * stride + xi];
-			if (val > 0) return true; // Collision with obstacle
+		double dx = xo - x_closest;
+		double dy = yo - y_closest;
+
+		if ((dx * dx + dy * dy) <= (ro * ro)) {
+			return true; // collision with circular obstacle
 		}
 	}
-	*/
+
 	return false; // No collision
 }
