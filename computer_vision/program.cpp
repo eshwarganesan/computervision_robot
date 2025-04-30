@@ -42,18 +42,21 @@ int object_area(image& label, int nlabel);
 double get_orientation(double front_ic, double front_jc, double back_ic, double back_jc);
 int get_front_centroid(double& front_x, double& front_y);
 int get_back_centroid(double& back_x, double& back_y);
+bool check_collision(double front_x, double front_y, double back_x, double back_y, double L, double W, image& label);
 
 // declare some global image structures (globals are bad, but easy)
 image a,b,rgb1;
 image rgb0; // original image before processing
 image label;
 
-int	tvalue = 200; // threshold value
+int	tvalue = 79; // threshold value
 
 const int IMAGE_WIDTH = 640;
 const int IMAGE_HEIGHT = 480;
 int mod;
 int cam_number = 0;
+double sim_robot_width = 105;
+double sim_robot_length = 152;
 
 int main()
 { 
@@ -106,14 +109,15 @@ int run_test() {
 	int nlabels;
 	double ic, jc;
 
-	load_rgb_image("output.bmp", rgb1);
-	view_rgb_image(rgb1);
+	load_rgb_image("output.bmp", rgb0);
+	view_rgb_image(rgb0);
 	cout << "\ntest image rgb";
 	pause();
 
 	//filter_color(rgb0, rgb1, 5.0, 0.7, 0.88, 5.0, 0.1, 0.1);
-	///*
-	filter_color(rgb1, rgb0, 153.0, 0.6, 0.7, 5.0, 0.1, 0.1);
+	filter_color(rgb0, rgb1, 153.0, 0.6, 0.7, 5.0, 0.1, 0.1);
+	/*
+	
 	view_rgb_image(rgb0);
 	pause();
 	nlabels = label_objects(tvalue);
@@ -144,7 +148,7 @@ int run_test() {
 	}
 
 
-	//*/
+	
 
 	filter_color(rgb1, rgb0, 5.0, 0.7, 0.88, 5.0, 0.1, 0.1);
 	view_rgb_image(rgb0);
@@ -174,8 +178,8 @@ int run_test() {
 			pause();
 		}
 	}
-
-	/*
+	*/
+	///*
 	copy(rgb1, a);
 
 	copy(a, rgb1);    // convert to RGB image format
@@ -197,7 +201,7 @@ int run_test() {
 	cout << "\nimage after filter function is applied";
 	pause();
 
-	threshold(a, b, 200);
+	threshold(a, b, 79);
 	copy(b, a);
 	copy(a, rgb1); // convert to RGB image format
 	view_rgb_image(rgb1);
@@ -233,7 +237,7 @@ int run_test() {
 	
 
 	label_image(a, label, nlabels);
-	*/
+	//*/
 	///*
 	
 	
@@ -391,6 +395,9 @@ int run_sim() {
 			<< "  Back y: " << back_y
 			<< " Theta: " << theta
 			<< flush;
+		if (check_collision(front_x, front_y, back_x, back_y, sim_robot_length, sim_robot_width, label)) {
+			cout << "\nCollision detected!";
+		}
 		view_rgb_image(rgb0, v_mode);
 
 		if (KEY('X')) break;
@@ -622,6 +629,10 @@ int label_objects(int tvalue)
 	// scale the image to enhance contrast
 	scale(a,a);
 
+	//filter
+	lowpass_filter(a, b);
+	copy(b, a);
+
 	// use threshold function to make a binary image (0,255)
 	threshold(a,a,tvalue);
 
@@ -779,4 +790,50 @@ int get_back_centroid(double& back_x, double& back_y) {
 		}
 	}
 	return 0;
+}
+
+bool check_collision(double front_x, double front_y, double back_x, double back_y, double L, double W, image& label) {
+	double x_center = (front_x + back_x) / 2.0;
+	double y_center = (front_y + back_y) / 2.0;
+	double theta = atan2(front_y - back_y, front_x - back_x);
+
+	double half_L = L / 2.0;
+	double half_W = W / 2.0;
+
+	double cos_theta = cos(theta);
+	double sin_theta = sin(theta);
+	double perp_x = -sin_theta;
+	double perp_y = cos_theta;
+
+	double corners[4][2] = {
+		{x_center + half_L * cos_theta + half_W * perp_x, y_center + half_L * sin_theta + half_W * perp_y},
+		{x_center + half_L * cos_theta - half_W * perp_x, y_center + half_L * sin_theta - half_W * perp_y},
+		{x_center - half_L * cos_theta - half_W * perp_x, y_center - half_L * sin_theta - half_W * perp_y},
+		{x_center - half_L * cos_theta + half_W * perp_x, y_center - half_L * sin_theta + half_W * perp_y}
+	};
+
+	// Check edge collisions
+	for (int i = 0; i < 4; i++) {
+		if (corners[i][0] < 0 || corners[i][0] >= IMAGE_WIDTH ||
+			corners[i][1] < 0 || corners[i][1] >= IMAGE_HEIGHT) {
+			return true; // Collision with edge
+		}
+	}
+
+
+	/* Check obstacle collisions
+	ibyte* pdata = (ibyte*)label.pdata;
+	int stride = label.width;
+
+	for (int i = 0; i < 4; i++) {
+		int xi = (int)(corners[i].x + 0.5);
+		int yi = (int)(corners[i].y + 0.5);
+
+		if (xi >= 0 && xi < label.width && yi >= 0 && yi < label.height) {
+			int val = pdata[yi * stride + xi];
+			if (val > 0) return true; // Collision with obstacle
+		}
+	}
+	*/
+	return false; // No collision
 }
