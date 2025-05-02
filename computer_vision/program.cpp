@@ -5,6 +5,7 @@
 #include <iostream>
 #include <fstream>
 #include <Windows.h>
+#include <cstdint>
 
 using namespace std;
 
@@ -21,6 +22,8 @@ using namespace std;
 #include "timer.h"
 
 #include "update_simulation.h"
+
+#include "robot_controller.h"
 
 
 extern robot_system S1;
@@ -78,11 +81,19 @@ int main()
 		
 	}
 	else if (mod == 2) {
+		int choice;
+		cout << "\nSelect mode: 0 = ATTACK, 1 = DEFENCE :\n";
+		cin >> choice;
+		g_mode = (choice == 1) ? DEFENCE : ATTACK;
 
-		cout << "\npress space key to begin program.";
+		if (!open_bt("COM7")) {
+			cout << "Failed to open Bluetooth port.\n";
+			return 1;
+		}
 		pause();
-		
 		run_vision();
+		close_bt();
+		
 	}
 	else if (mod == 3) {
 		cout << "\npress space key to begin program.";
@@ -452,13 +463,13 @@ int run_vision() {
 	jc = 300;
 
 	// set camera number (normally 0 or 1)
-	cam_number = 0;
+	cam_number = 0;			// Should be 0 for external camera
 	width = 640;
 	height = 480;
 
 	activate_camera(cam_number, height, width);	// activate camera
 
-	acquire_image(rgb0, cam_number); // acquire an image from a video source (RGB format)
+	//acquire_image(rgb0, cam_number); // acquire an image from a video source (RGB format)	
 
 	// label objects in the image
 	label_objects(tvalue);
@@ -470,6 +481,7 @@ int run_vision() {
 	centroid(a, label, nlabel, ic, jc);
 
 	while (1) {
+		acquire_image(rgb0, cam_number);
 		track_object(nlabel, ic, jc);
 		view_rgb_image(rgb0, 0);
 		if (KEY('X')) break;
