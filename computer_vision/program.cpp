@@ -916,43 +916,47 @@ double get_orientation(double front_ic, double front_jc, double back_ic, double 
 int get_front_centroid(double &front_x, double &front_y) {
 	filter_color(rgb1, rgb0, 153.0, 0.6, 0.7, 5.0, 0.1, 0.1); // GREEN
 	int nlabels = label_objects(tvalue);
+	int area;
+	/*
 	image blackmask;
 	blackmask.type = GREY_IMAGE;
 	blackmask.width = IMAGE_WIDTH;
 	blackmask.height = IMAGE_HEIGHT;
 	allocate_image(blackmask);
 	build_black_mask(blackmask);
+	*/
 	for (int i = 1; i <= nlabels; i++) {
-		int area = object_area(label, i);
-		if (area < 100 || area >4000) continue;
-		if (!has_black_outline(i, label, blackmask)) continue;
-		centroid(a, label, i, front_x, front_y);
-		free_image(blackmask);
-		return 0;
+		area = object_area(label, i);
+		if (area <= 700) {
+			centroid(a, label, i, front_x, front_y);
+			break;
+		}
 	}
-	free_image(blackmask);
-	return 1;
+	//free_image(blackmask);
+	return 0;
 }
 
 int get_back_centroid(double& back_x, double& back_y) {
 	filter_color(rgb1, rgb0, 5.0, 0.65, 0.89, 2, 0.05, 0.05);  // RED
 	int nlabels = label_objects(tvalue);
+	int area;
+	/*
 	image blackmask;
 	blackmask.type = GREY_IMAGE;
 	blackmask.width = IMAGE_WIDTH;
 	blackmask.height = IMAGE_HEIGHT;
 	allocate_image(blackmask);
 	build_black_mask(blackmask);
+	*/
 	for (int i = 1; i <= nlabels; i++) {
-		int area = object_area(label, i);
-		if (area < 100 || area >4000) continue;
-		if (!has_black_outline(i, label, blackmask)) continue;
-		centroid(a, label, i, back_x, back_y);
-		free_image(blackmask);
-		return 0;
+		area = object_area(label, i);
+		if (area <= 700) {
+			centroid(a, label, i, back_x, back_y);
+			break;
+		}
 	}
-	free_image(blackmask);
-	return 1;
+	//free_image(blackmask);
+	return 0;
 }
 
 int get_opponent_front_centroid(double &front_x, double &front_y)
