@@ -1118,4 +1118,4 @@ void sobel_edge_detection(const image& input, image& output) {
 		}
 	}
 }
-}
+
