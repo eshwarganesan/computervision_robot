@@ -158,14 +158,44 @@ int run_test() {
 		{220.0, 0.07, 0.2, 120.0, 0.1, 0.1}
 	};
 
-	load_rgb_image("output2.bmp", rgb1);
+	load_rgb_image("screenshot.bmp", rgb1);
 	view_rgb_image(rgb1);
 	cout << "\ntest image rgb";
 	pause();
-
+	/*
+	get_front_centroid(ic, jc);
+	draw_point_rgb(rgb1, ic, jc, 0, 0, 255); //green centroin point
+	view_rgb_image(rgb1);
+	cout << "\nfront centroid";
+	pause();
+	get_back_centroid(ic, jc);
+	draw_point_rgb(rgb1, ic, jc, 0, 0, 255); //red centroid point
+	view_rgb_image(rgb1);
+	cout << "\nback centroid";
+	pause();
+	*/
+	HSVFilter filter[] = { 153.0, 0.5, 0.35, 20.0, 0.2, 0.2 };
+	filter_colors(rgb1, rgb0, filter, 1);
+	view_rgb_image(rgb0);
+	cout << "\ngreen filter";
+	pause();
+	nlabels = label_objects(80);
+	copy(a, rgb0);
+	view_rgb_image(rgb0);
+	cout << "\nlabeling";
+	pause();
+	for (int i = 1; i <= nlabels; i++) {
+		centroid(a, label, i, ic, jc);
+		cout << "\ncentroid: ic = " << ic << " jc = " << jc;
+		int area = object_area(label, i);
+		cout << "\nArea: " << area;
+		draw_point_rgb(rgb0, (int)ic, (int)jc, 0, 0, 255);
+		view_rgb_image(rgb0);
+		pause();
+	}
 	//sobel edge detection
 	///*
-	///*
+	/*
 	get_obstacles(x_obs, y_obs, N_OBS);
 	for (int i = 0; i < N_OBS; i++) {
 		draw_point_rgb(rgb1, (int)x_obs[i], (int)y_obs[i], 255, 0, 0);
@@ -173,7 +203,7 @@ int run_test() {
 	view_rgb_image(rgb1);
 	cout << "\nobstacles";
 	pause();
-
+	*/
 	/*
 	nlabels = label_objects(200);
 	int area;
@@ -572,48 +602,54 @@ int run_vision() {
 
 	activate_camera(cam_number, IMAGE_HEIGHT, IMAGE_WIDTH);	// activate camera
 
-	//acquire_image(rgb0, cam_number); // acquire an image from a video source (RGB format)	
+	/*
+	acquire_image(rgb0, cam_number); // acquire an image from a video source (RGB format)
+	cout << "take a screenshot";
+	while (1) {
+		acquire_image(rgb0, cam_number);
+		view_rgb_image(rgb0);
+		if (KEY('X')) {
+			save_rgb_image("screenshot.bmp", rgb0);
+			break;
+		}
+	}
+	*/
+	acquire_image(rgb0, cam_number);
 
+	
 	//label objects in the image
 	label_objects(tvalue);
 	select_object(nlabel, label, a, b); // select an object to track
-
+	cout << "\nlabel number: " << nlabel;
 	// tracking
 	centroid(a, label, nlabel, ic, jc);
 
 	double fx = 0, fy = 0, bx = 0, by = 0;
-
+	cout << "\n";
 	while (1) {
-		acquire_image(rgb0, cam_number);
+		acquire_image(rgb1, cam_number);
 
-		if (get_front_centroid(fx, fy) != 0) {
-			view_rgb_image(rgb0, 1); continue;
-		}
-		if (get_back_centroid(bx, by) != 0) {
-			view_rgb_image(rgb0, 1); continue;
-		}
+		get_front_centroid(fx, fy);
+		get_back_centroid(bx, by);
 
-		draw_point_rgb(rgb0, fx, fy, 0, 255, 0); //green centroin point
-		draw_point_rgb(rgb0, bx, by, 255, 0, 0); //red centroid point
+		cout << "\rFront centroid x: " << fx << " y: " << fy << "  Back centroid x: " << bx << " y: " << by << flush;
+
+		draw_point_rgb(rgb1, fx, fy, 0, 0, 255); //green centroin point
+		draw_point_rgb(rgb1, bx, by, 0, 0, 255); //red centroid point
 
 		//nlabels = label_objects(tvalue);
 		//track_object(nlabel, ic, jc);
+	
+	
+		view_rgb_image(rgb1);
 
-		//copy(a, rgb0);
-		//scale(a, a);
-		//threshold(a, a, tvalue);
-		//invert(a, a);
-		//label_image(a, label, nlabels);
-		//centroid(a, label, nlabel, fx, fy);		
-
-		
 		bool avoid = check_collision(fx, fy, bx, by, sim_robot_length*0.5, sim_robot_width*0.5, obs_x, obs_y, obs_r, N_OBS);
 
 		WheelCmd cmd = decide_cmd(fx, fy, bx, by, 0, 0, 0, 0, avoid); //add ox, oy, obx, oby for opponent but 0 for now
 
 		send_cmd(cmd);
 
-		view_rgb_image(rgb0, 1);
+		
 
 		if (KEY('X')) {
 			WheelCmd stop{ 128, 128 };
@@ -621,6 +657,11 @@ int run_vision() {
 			break;
 		}
 	}
+
+	//while (1) {
+		//acquire_image(rgb1, cam_number); // acquire an image from a video source (RGB format)
+
+	//}
 	
 	close_bt();
 	return 0;
@@ -986,7 +1027,7 @@ double get_orientation(double front_ic, double front_jc, double back_ic, double 
 }
 
 int get_front_centroid(double &front_x, double &front_y) {
-	HSVFilter filter[] = {153.0, 0.6, 0.7, 5.0, 0.1, 0.1};
+	HSVFilter filter[] = {153.0, 0.5, 0.35, 20.0, 0.2, 0.2};
 	filter_colors(rgb1, rgb0, filter, 1); // GREEN
 	int nlabels = label_objects(tvalue);
 	int area;
@@ -1000,7 +1041,7 @@ int get_front_centroid(double &front_x, double &front_y) {
 	*/
 	for (int i = 1; i <= nlabels; i++) {
 		area = object_area(label, i);
-		if (area <= 700) {
+		if (area >= 700 && area <= 5000) { //to modify, make more robust by lower upper bound
 			centroid(a, label, i, front_x, front_y);
 			break;
 		}
@@ -1010,7 +1051,8 @@ int get_front_centroid(double &front_x, double &front_y) {
 }
 
 int get_back_centroid(double& back_x, double& back_y) {
-	HSVFilter filter[] = { 5.0, 0.65, 0.89, 2, 0.05, 0.05 };
+	HSVFilter filter[] = { { 10.0, 0.65, 0.5, 8, 0.3, 0.35 },
+		{350, 0.65, 0.5, 10, 0.2, 0.35} };
 	filter_colors(rgb1, rgb0, filter, 1);  // RED
 	int nlabels = label_objects(tvalue);
 	int area;
@@ -1024,7 +1066,7 @@ int get_back_centroid(double& back_x, double& back_y) {
 	*/
 	for (int i = 1; i <= nlabels; i++) {
 		area = object_area(label, i);
-		if (area <= 700) {
+		if (area >= 700 && area <= 5000) {
 			centroid(a, label, i, back_x, back_y);
 			break;
 		}
