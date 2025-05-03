@@ -31,6 +31,14 @@ using namespace std;
 
 extern robot_system S1;
 
+struct HSVFilter {
+	double hue;
+	double sat;
+	double val;
+	double h_tol;
+	double s_tol;
+	double v_tol;
+};
 
 int activate();
 int deactivate();
@@ -43,7 +51,7 @@ int track_object(i2byte nlabel, double &ic, double &jc);
 int label_objects(int tvalue);
 void handle_keyboard_input(double dpw, int& pw_l, int& pw_r);
 void calculate_HSV(int R, int G, int B, double& hue, double& sat, double& value);
-int filter_color(image &a, image &b, double hue, double sat, double value, double htol, double stol, double vtol);
+int filter_colors(image& a, image& b, HSVFilter* filters, int num_filters);
 int object_area(image& label, int nlabel);
 double get_orientation(double front_ic, double front_jc, double back_ic, double back_jc);
 int get_front_centroid(double& front_x, double& front_y);
@@ -52,8 +60,8 @@ int get_opponent_front_centroid(double& front_x, double& front_y);
 int get_opponent_back_centroid(double& back_x, double& back_y);
 bool check_collision(double front_x, double front_y, double back_x, double back_y, double L, double W, const double* obstacle_x, const double* obstacle_y, const double* obstacle_r, int N_OBS);
 bool has_line_of_sight(double x1, double y1, double x2, double y2);
-int filter_obstacles();
 void sobel_edge_detection(const image& input, image& output);
+int get_obstacles(double* x_vals, double* y_vals, int n_obs);
 
 // declare some global image structures (globals are bad, but easy)
 image a,b,rgb1;
@@ -79,6 +87,7 @@ const double OUTLINE_FRACTION = 0.3;	//fraction robot's colour circle thatt can 
 extern robot_system S1;
 int activate();
 int deactivate();
+
 
 int main()
 { 
@@ -138,6 +147,15 @@ int run_test() {
 
 	int nlabels;
 	double ic, jc;
+	const int N_OBS = 2;
+	double x_obs[N_OBS], y_obs[N_OBS], r_obs[N_OBS];
+	HSVFilter filters[] = {
+		{153.0, 0.6, 0.7, 5.0, 0.1, 0.1},
+		{5.0, 0.65, 0.89, 2.0, 0.05, 0.05},
+		{30.0, 0.5, 1.0, 2.0, 0.05, 0.1},
+		{203.0, 0.8, 0.89, 5.0, 0.05, 0.05},
+		{220.0, 0.07, 0.2, 100.0, 0.05, 0.05}
+	};
 
 	load_rgb_image("output.bmp", rgb1);
 	view_rgb_image(rgb1);
@@ -147,22 +165,16 @@ int run_test() {
 	//sobel edge detection
 	///*
 
-	copy(rgb1, a);
-	copy(a, rgb1);
-	view_rgb_image(rgb1);
-	cout << "\n image greyscale";
+	filter_colors(rgb1, rgb0, filters, 1);
+	view_rgb_image(rgb0);
+	cout << "\ncolors filtered";
 	pause();
 
-	sobel_edge_detection(a, b);
-	copy(b, rgb1);
+	nlabels = label_objects(tvalue);
+	int area;
+	
 	view_rgb_image(rgb1);
-	cout << "\n sobel edge";
-	pause();
-
-	threshold(b, a, 200);
-	copy(a, rgb1);
-	view_rgb_image(rgb1);
-	cout << "\nthreshold";
+	cout << "\nobstacles detected";
 	pause();
 
 	//*/
@@ -794,50 +806,45 @@ void calculate_HSV(int R, int G, int B, double& hue, double& sat, double& value)
 
 }
 
-int filter_color(image& a, image& b, double hue, double sat, double value, double htol, double stol, double vtol) {
-	i4byte size, i;
-	ibyte* pa, * pb, min, max;
-	double h, s, v;
-	int red, green, blue;
+int filter_colors(image& a, image& b, HSVFilter* filters, int num_filters) {
+	if (a.height != b.height || a.width != b.width || a.type != b.type || a.type != RGB_IMAGE) {
+		std::cerr << "Error: Images must be same size and RGB type.\n";
+		return 1;
+	}
 
 	copy(a, b);
 
-	pa = a.pdata;
-	pb = b.pdata;
+	ibyte* pa = a.pdata;
+	ibyte* pb = b.pdata;
+	i4byte size = a.width * a.height * 3;
 
-	if (a.height != b.height || a.width != b.width) {
-		cout << "\nerror in scale: sizes of a, b are not the same!";
-		return 1;
-	}
-	if (a.type != b.type) {
-		cout << "\nerror in scale: types of a, b are not the same!";
-		return 1;
-	}
-	if (a.type != RGB_IMAGE || b.type != RGB_IMAGE) {
-		cout << "\nerror in scale: types of a, b are not the same!";
-		return 1;
-	}
+	for (i4byte i = 0; i < size; i += 3) {
+		int blue = pa[i];
+		int green = pa[i + 1];
+		int red = pa[i + 2];
 
-	size = (i4byte)a.width * a.height * 3;
-	for (i = 0; i < size; i += 3) {
-		blue = pa[i];
-		green = pa[i + 1];
-		red = pa[i + 2];
-		
-		
+		double h, s, v;
 		calculate_HSV(red, green, blue, h, s, v);
 
-		if (h >= hue - htol && h <= hue + htol && s >= sat - stol && s <= sat + stol && v >= value - vtol && v <= value + vtol) {
-			continue;
+		bool match_found = false;
+		for (int f = 0; f < num_filters; ++f) {
+			const HSVFilter& filter = filters[f];
+			if (h >= filter.hue - filter.h_tol && h <= filter.hue + filter.h_tol &&
+				s >= filter.sat - filter.s_tol && s <= filter.sat + filter.s_tol &&
+				v >= filter.val - filter.v_tol && v <= filter.val + filter.v_tol) {
+				match_found = true;
+				break;
+			}
 		}
-		else {
+
+		if (!match_found) {
 			pb[i] = 255;
 			pb[i + 1] = 255;
 			pb[i + 2] = 255;
 		}
-		
 	}
 
+	return 0;
 }
 
 static void build_black_mask(image& blackmask) {
@@ -872,7 +879,7 @@ static bool has_black_outline(int lbl, image& labelImg, image& blackmask) {
 		allocate_image(ring);
 
 		invert(region, region);
-		filter_color(dilated, ring, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);	//ring = pixels were dilated ==255 AND region(inverted) ==255
+		//filter_color(dilated, ring, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);	//ring = pixels were dilated ==255 AND region(inverted) ==255
 		int ringCount = 0, blackCount = 0;
 		for (int i = 0, n = W * H; i < n; ++i) {	//counting ring pixels and verifying == to blackmask
 			if (ring.pdata[i]) {
@@ -914,7 +921,8 @@ double get_orientation(double front_ic, double front_jc, double back_ic, double 
 }
 
 int get_front_centroid(double &front_x, double &front_y) {
-	filter_color(rgb1, rgb0, 153.0, 0.6, 0.7, 5.0, 0.1, 0.1); // GREEN
+	HSVFilter filter[] = {153.0, 0.6, 0.7, 5.0, 0.1, 0.1};
+	filter_colors(rgb1, rgb0, filter, 1); // GREEN
 	int nlabels = label_objects(tvalue);
 	int area;
 	/*
@@ -937,7 +945,8 @@ int get_front_centroid(double &front_x, double &front_y) {
 }
 
 int get_back_centroid(double& back_x, double& back_y) {
-	filter_color(rgb1, rgb0, 5.0, 0.65, 0.89, 2, 0.05, 0.05);  // RED
+	HSVFilter filter[] = { 5.0, 0.65, 0.89, 2, 0.05, 0.05 };
+	filter_colors(rgb1, rgb0, filter, 1);  // RED
 	int nlabels = label_objects(tvalue);
 	int area;
 	/*
@@ -961,7 +970,7 @@ int get_back_centroid(double& back_x, double& back_y) {
 
 int get_opponent_front_centroid(double &front_x, double &front_y)
 {
-	filter_color(rgb1, rgb0, 30.0, 0.6, 0.8, 10.0, 0.2, 0.2); //ORANGE
+	//filter_color(rgb1, rgb0, 30.0, 0.6, 0.8, 10.0, 0.2, 0.2); //ORANGE
 	int nlabels = label_objects(tvalue);
 
 	image blackmask = { GREY_IMAGE, IMAGE_WIDTH, IMAGE_HEIGHT, nullptr };
@@ -981,7 +990,7 @@ int get_opponent_front_centroid(double &front_x, double &front_y)
 
 int get_opponent_back_centroid(double &back_x, double &back_y)
 {
-	filter_color(rgb1, rgb0, 210.0, 0.6, 0.7, 10.0, 0.2, 0.2); //BLUE
+	//filter_color(rgb1, rgb0, 210.0, 0.6, 0.7, 10.0, 0.2, 0.2); //BLUE
 	int nlabels = label_objects(tvalue);
 
 	image blackmask = { GREY_IMAGE, IMAGE_WIDTH, IMAGE_HEIGHT, nullptr };
@@ -1123,3 +1132,33 @@ void sobel_edge_detection(const image& input, image& output) {
 	}
 }
 
+int get_obstacles(double* x_vals, double* y_vals, int n_obs) {
+	HSVFilter filters[] = {
+		{ 153.0, 0.6, 0.7, 5.0, 0.1, 0.1 },//green
+		{ 5.0, 0.65, 0.89, 2.0, 0.05, 0.05 },//red
+		{ 30.0, 0.5, 1.0, 2.0, 0.05, 0.1 },//yellow
+		{ 203.0, 0.8, 0.89, 5.0, 0.05, 0.05 },//blue
+		{ 220.0, 0.07, 0.2, 100.0, 0.05, 0.05 }//black
+	};
+
+	filter_colors(rgb1, rgb0, filters, 1);
+
+	int nlabels = label_objects(tvalue);
+	int area;
+
+	cout << "label image";
+	copy(a, rgb0);
+	view_rgb_image(rgb0);
+	pause();
+
+	for (int i = 0; i < n_obs; i++) {
+		area = object_area(label, i+1);
+		if (area > 700 && area < 4000) {
+			double ic, jc;
+			centroid(a, label, i+1, ic, jc);
+			x_vals[i] = ic;
+			y_vals[i] = jc;
+		}
+	}
+	return 0;
+}
