@@ -158,7 +158,7 @@ int run_test() {
 		{220.0, 0.07, 0.2, 120.0, 0.1, 0.1}
 	};
 
-	load_rgb_image("output.bmp", rgb1);
+	load_rgb_image("output2.bmp", rgb1);
 	view_rgb_image(rgb1);
 	cout << "\ntest image rgb";
 	pause();
@@ -167,7 +167,12 @@ int run_test() {
 	///*
 	///*
 	get_obstacles(x_obs, y_obs, N_OBS);
-
+	for (int i = 0; i < N_OBS; i++) {
+		draw_point_rgb(rgb1, (int)x_obs[i], (int)y_obs[i], 255, 0, 0);
+	}
+	view_rgb_image(rgb1);
+	cout << "\nobstacles";
+	pause();
 
 	/*
 	nlabels = label_objects(200);
