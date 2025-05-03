@@ -563,7 +563,6 @@ int run_vision() {
 	i2byte nlabel;
 	double ic, jc;
 	int nlabels = 0;
-	double fx, fy;
 	ic = 200;
 	jc = 300;
 
@@ -582,10 +581,23 @@ int run_vision() {
 	// tracking
 	centroid(a, label, nlabel, ic, jc);
 
+	double fx = 0, fy = 0, bx = 0, by = 0;
+
 	while (1) {
 		acquire_image(rgb0, cam_number);
-		nlabels = label_objects(tvalue);
-		track_object(nlabel, ic, jc);
+
+		if (get_front_centroid(fx, fy) != 0) {
+			view_rgb_image(rgb0, 1); continue;
+		}
+		if (get_back_centroid(bx, by) != 0) {
+			view_rgb_image(rgb0, 1); continue;
+		}
+
+		draw_point_rgb(rgb0, fx, fy, 0, 255, 0); //green centroin point
+		draw_point_rgb(rgb0, bx, by, 255, 0, 0); //red centroid point
+
+		//nlabels = label_objects(tvalue);
+		//track_object(nlabel, ic, jc);
 
 		//copy(a, rgb0);
 		//scale(a, a);
@@ -595,18 +607,22 @@ int run_vision() {
 		//centroid(a, label, nlabel, fx, fy);		
 
 		
-		//bool avoid = check_collision(fx, fy, bx, by, sim_robot_length*0.5, sim_robot_width*0.5, obs_x, obs_y, obs_r, N_OBS);
+		bool avoid = check_collision(fx, fy, bx, by, sim_robot_length*0.5, sim_robot_width*0.5, obs_x, obs_y, obs_r, N_OBS);
 
-		//WheelCmd cmd = decide_cmd(fx, fy, bx, by, ox, oy, obx, oby, avoid);
+		WheelCmd cmd = decide_cmd(fx, fy, bx, by, 0, 0, 0, 0, avoid); //add ox, oy, obx, oby for opponent but 0 for now
 
-		//send_cmd(cmd);
+		send_cmd(cmd);
 
 		view_rgb_image(rgb0, 1);
 
-		if (KEY('X')) break;
+		if (KEY('X')) {
+			WheelCmd stop{ 128, 128 };
+			send_cmd(stop);
+			break;
+		}
 	}
 	
-
+	close_bt();
 	return 0;
 }
 

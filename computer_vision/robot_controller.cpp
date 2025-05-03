@@ -18,7 +18,7 @@ bool open_bt(const char* com) {
 	DCB dcb{};
 	dcb.DCBlength = sizeof(dcb);
 	GetCommState(hSer, &dcb);
-	dcb.BaudRate = CBR_115200;
+	dcb.BaudRate = CBR_9600;
 	dcb.ByteSize = 8;
 	dcb.Parity = NOPARITY;
 	dcb.StopBits = ONESTOPBIT;
