@@ -136,6 +136,7 @@
     <Library Include="strmbasd.lib" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="offense_robot.cpp" />
     <ClCompile Include="program.cpp" />
     <ClCompile Include="robot.cpp" />
     <ClCompile Include="robot_controller.cpp" />
@@ -159,6 +160,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="image_transfer.h" />
+    <ClInclude Include="offense_robot.h" />
     <ClInclude Include="robot.h" />
     <ClInclude Include="robot_controller.h" />
     <ClInclude Include="shared_memory.h" />
