@@ -69,7 +69,7 @@ image a,b,rgb1;
 image rgb0; // original image before processing
 image label;
 
-int	tvalue = 79; // threshold value
+int	tvalue = 120; // threshold value
 
 const int IMAGE_WIDTH = 640;
 const int IMAGE_HEIGHT = 480;
@@ -562,7 +562,8 @@ int run_vision() {
 
 	i2byte nlabel;
 	double ic, jc;
-
+	int nlabels = 0;
+	double fx, fy;
 	ic = 200;
 	jc = 300;
 
@@ -583,23 +584,22 @@ int run_vision() {
 
 	while (1) {
 		acquire_image(rgb0, cam_number);
+		nlabels = label_objects(tvalue);
+		track_object(nlabel, ic, jc);
 
-		double fx=0, fy=0, bx=0, by=0;
-		if (get_front_centroid(fx, fy) != 0 || get_back_centroid(bx, by) != 0) {
-			view_rgb_image(rgb0, 1);
-			if (KEY('X')) break;
-			continue;
-		}
+		//copy(a, rgb0);
+		//scale(a, a);
+		//threshold(a, a, tvalue);
+		//invert(a, a);
+		//label_image(a, label, nlabels);
+		//centroid(a, label, nlabel, fx, fy);		
 
-		double ox=0, oy=0, obx=0, oby=0;
-		//get_opponent_front_centroid(ox, oy);
-		//get_opponent_back_centroid(obx, oby);
 		
-		bool avoid = check_collision(fx, fy, bx, by, sim_robot_length*0.5, sim_robot_width*0.5, obs_x, obs_y, obs_r, N_OBS);
+		//bool avoid = check_collision(fx, fy, bx, by, sim_robot_length*0.5, sim_robot_width*0.5, obs_x, obs_y, obs_r, N_OBS);
 
-		WheelCmd cmd = decide_cmd(fx, fy, bx, by, ox, oy, obx, oby, avoid);
+		//WheelCmd cmd = decide_cmd(fx, fy, bx, by, ox, oy, obx, oby, avoid);
 
-		send_cmd(cmd);
+		//send_cmd(cmd);
 
 		view_rgb_image(rgb0, 1);
 
