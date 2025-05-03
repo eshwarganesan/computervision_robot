@@ -63,6 +63,7 @@ bool check_collision(double front_x, double front_y, double back_x, double back_
 bool has_line_of_sight(double x1, double y1, double x2, double y2);
 void sobel_edge_detection(const image& input, image& output);
 int get_obstacles(double* x_vals, double* y_vals, int n_obs);
+double normalize_angle(double angle);
 
 // declare some global image structures (globals are bad, but easy)
 image a,b,rgb1;
@@ -174,205 +175,6 @@ int run_test() {
 	cout << "\nobstacles";
 	pause();
 
-	/*
-	nlabels = label_objects(200);
-	int area;
-	copy(a, rgb0);
-	view_rgb_image(rgb0);
-	cout << "\nlabeling";
-	pause();
-	*/
-	
-
-	/*
-	for (int i = 1; i <= nlabels; i++) {
-		centroid(a, label, i, ic, jc);
-		copy(a, rgb0);
-		draw_point_rgb(rgb0, (int)ic, (int)jc, 255, 0, 0);
-		cout << "\ncentroid: ic = " << ic << " jc = " << jc;
-		area = object_area(label, i);
-		cout << "\nArea: " << area;
-		view_rgb_image(rgb0);
-		pause();
-	}
-	*/
-	/*
-	for (int i = 0; i < 2; i++) {
-		area = object_area(label, i + 1);
-		if (area > 1500 && area < 4500) {
-			double ic, jc;
-			centroid(a, label, i + 1, ic, jc);
-			x_obs[i] = ic;
-			y_obs[i] = jc;
-		}
-	}
-
-	for (int i = 0; i < 2; i++) {
-		cout << "\nx: " << x_obs[i] << " y: " << y_obs[i];
-	}
-
-	*/
-	//*/
-	//copy(rgb0, a);
-	//sobel_edge_detection(a, b);
-	//copy(b, rgb0);
-	//view_rgb_image(rgb0);
-	//cout << "\n sobel edges";
-	//pause();
-
-	
-
-	//*/
-
-	//filter_color(rgb0, rgb1, 5.0, 0.7, 0.88, 5.0, 0.1, 0.1);
-	//filter_color(rgb0, rgb1, 153.0, 0.6, 0.7, 5.0, 0.1, 0.1);
-	/*
-	
-	view_rgb_image(rgb0);
-	pause();
-	nlabels = label_objects(tvalue);
-	copy(a, rgb0);
-	view_rgb_image(rgb0);
-
-	for (int i = 1; i <= nlabels; i++)
-	{
-		int area = object_area(label, i);
-		if (area >= 700 && area <= 4000) {
-
-			centroid(a, label, i, ic, jc);
-			cout << "\ncentroid: ic = " << ic << " jc = " << jc;
-
-			// convert to RGB image format
-			copy(a, rgb0);
-
-			// mark the centroid point on the image with a blue point
-			draw_point_rgb(rgb0, (int)ic, (int)jc, 0, 0, 255);
-
-			view_rgb_image(rgb0);
-			cout << "\nimage after a centroid is marked.";
-
-
-			cout << "\nobject area = " << area;
-			pause();
-		}
-	}
-
-
-	
-
-	filter_color(rgb1, rgb0, 5.0, 0.7, 0.88, 5.0, 0.1, 0.1);
-	view_rgb_image(rgb0);
-	pause();
-	nlabels = label_objects(tvalue);
-	copy(a, rgb0);
-	view_rgb_image(rgb0);
-	for (int i = 1; i <= nlabels; i++)
-	{
-		int area = object_area(label, i);
-		if (area <= 700) {
-
-			centroid(a, label, i, ic, jc);
-			cout << "\ncentroid: ic = " << ic << " jc = " << jc;
-
-			// convert to RGB image format
-			copy(a, rgb0);
-
-			// mark the centroid point on the image with a blue point
-			draw_point_rgb(rgb0, (int)ic, (int)jc, 0, 0, 255);
-
-			view_rgb_image(rgb0);
-			cout << "\nimage after a centroid is marked.";
-
-
-			cout << "\nobject area = " << area;
-			pause();
-		}
-	}
-	*/
-	/*
-	copy(rgb1, a);
-
-	copy(a, rgb1);    // convert to RGB image format
-	view_rgb_image(rgb1);
-	cout << "\ntest image greyscale";
-
-	scale(a, b);
-	copy(b, a); // put result back into image a
-
-	copy(a, rgb1);    // convert to RGB image format
-	view_rgb_image(rgb1);
-	cout << "\nimage scale function is applied";
-	pause();
-
-	lowpass_filter(a, b);
-	copy(b, a);
-	copy(a, rgb1);
-	view_rgb_image(rgb1);
-	cout << "\nimage after filter function is applied";
-	pause();
-
-	threshold(a, b, 200);
-	copy(b, a);
-	copy(a, rgb1); // convert to RGB image format
-	view_rgb_image(rgb1);
-	cout << "\nimage after threshold function is applied";
-	pause();
-
-	invert(a, b);
-	copy(b, a);
-
-	copy(a, rgb1);    // convert to RGB image format
-	view_rgb_image(rgb1);
-	cout << "\nimage after invert function is applied";
-	pause();
-
-	erode(a, b);
-	copy(b, a);
-
-	copy(a, rgb1);    // convert to RGB image format
-	view_rgb_image(rgb1);
-	cout << "\nimage after erosion function is applied";
-	pause();
-
-	dialate(a, b);
-	copy(b, a);
-
-	dialate(a, b);
-	copy(b, a);
-
-	copy(a, rgb1);    // convert to RGB image format
-	view_rgb_image(rgb1);
-	cout << "\nimage after dialation function is applied";
-	pause();
-	
-
-	label_image(a, label, nlabels);
-	*/
-	/*
-	for (int i = 1; i <= nlabels; i++)
-	{
-
-		centroid(a, label, i, ic, jc);
-		cout << "\ncentroid: ic = " << ic << " jc = " << jc;
-
-		// convert to RGB image format
-		copy(a, rgb1);
-
-		// mark the centroid point on the image with a blue point
-		draw_point_rgb(rgb1, (int)ic, (int)jc, 0, 0, 255);
-
-		view_rgb_image(rgb1);
-		cout << "\nimage after a centroid is marked.";
-
-		int area = object_area(label, i);
-		cout << "\nobject area = " << area;
-		pause();
-	}
-	*/
-	///*
-	
-	
-	//*/
 	return 0;
 }
 
@@ -390,7 +192,7 @@ int run_sim() {
 	int v_mode;
 	i2byte nlabel{};
 	double front_x, front_y, back_x, back_y, theta;
-
+	double opp_x, opp_y;
 	//-----------------------------Initialization-------------------------------------------//
 	width1 = 640;
 	height1 = 480;
@@ -469,7 +271,8 @@ int run_sim() {
 
 	tc0 = high_resolution_time();
 	double dpw = 500;
-
+	opp_x = 150;
+	opp_y = 375;
 	//-------------------------------------------------------------------------------//
 	front_x, front_y, back_x, back_y = 0.0;
 	double ic = 200.0, jc = 300.0;
@@ -506,7 +309,7 @@ int run_sim() {
 		// max_speed -- pixels/s for right and left wheels
 
 
-		handle_keyboard_input(dpw, pw_l_o, pw_r_o);
+		//handle_keyboard_input(dpw, pw_l_o, pw_r_o);
 
 		// manually set opponent inputs for the simulation
 		// -- good for testing your program
@@ -527,7 +330,36 @@ int run_sim() {
 		for (int i = 0; i < N_obs; i++) {
 			draw_point_rgb(rgb0, (int)x_obs[i], (int)y_obs[i], 255, 0, 0);
 		}
+		draw_point_rgb(rgb0, (int)opp_x, (int)opp_y, 0, 255, 0);
 		
+		//get direction to opponent
+		double robot_x = (front_x + back_x) / 2.0;
+		double robot_y = (front_y + back_y) / 2.0;
+
+		double dx = opp_x - front_x;
+		double dy = opp_y - front_y;
+
+		double repulse_x = 0, repulse_y = 0;
+		for (int i = 0; i < N_obs; ++i) {
+			double ox = x_obs[i], oy = y_obs[i];
+			double odx = ox - front_x;
+			double ody = oy - front_y;
+			double dist2 = odx * odx + ody * ody;
+
+			if (dist2 < 3000) { //radius squared
+				double scale = 6.0 / dist2;
+				repulse_x += scale * odx;
+				repulse_y += scale * ody;
+			}
+		}
+
+		double goal_theta = atan2(dy + repulse_y, dx + repulse_x);
+		double angle_diff = normalize_angle(goal_theta - theta);
+
+		if (fabs(angle_diff) < 0.2) { pw_l_o = 1500 - dpw; pw_r_o = 1500 + dpw; }
+		else if (angle_diff > 0) { pw_l_o = 1500 + dpw; pw_r_o = 1500 + dpw; }
+		else { pw_l_o = 1500 - dpw; pw_r_o = 1500 - dpw; }
+
 		/*
 		cout << "\rFront x: " << front_x
 			<< "  Front y: " << front_y
@@ -552,7 +384,7 @@ int run_sim() {
 		// -- it seems laptops tend to go into low CPU mode
 		// when Sleep is called, which slows down the simulation
 		// more than the requested sleep time
-//		Sleep(10); // 100 fps max
+		Sleep(5); // 100 fps max
 	}
 
 	return 0;
@@ -1233,3 +1065,8 @@ int get_obstacles(double* x_vals, double* y_vals, int n_obs) {
 	return 0;
 }
 
+double normalize_angle(double angle) {
+	while (angle > 3.14159) angle -= 2 * 3.14159;
+	while (angle < -3.14159) angle += 2 * 3.14159;
+	return angle;
+}
