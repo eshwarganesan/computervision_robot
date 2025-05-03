@@ -6,7 +6,7 @@
 Mode g_mode = ATTACK;		//default mode
 
 static HANDLE hSer = INVALID_HANDLE_VALUE;
-static constexpr uint8_t STOP = 128;		//neutral PWM
+//static constexpr uint8_t STOP = 128;		//neutral PWM
 
 bool open_bt(const char* com) {
 	hSer = CreateFileA(com, GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
@@ -32,20 +32,27 @@ void close_bt() {
 		hSer = INVALID_HANDLE_VALUE;
 	}
 }
-void send_cmd(const WheelCmd &c) {
+void send_cmd(DriveCmd c) {
 	if (hSer == INVALID_HANDLE_VALUE) return;
-	char pkt[3]{ char(c.left), char(c.right), '\n' };
-	DWORD n; WriteFile(hSer, pkt, 3, &n, nullptr);
+	char ch = static_cast<char>(c);
+	DWORD n;
+	WriteFile(hSer, &ch, 1, &n, nullptr);
 }
 
-static uint8_t clamp_pwm(int v) {
+/*static uint8_t clamp_pwm(int v) {
 	if (v < 0) return 0;
 	if (v > 255) return 255;
 	return uint8_t(v);
-}
+}*/
 
-WheelCmd decide_cmd(double fx, double fy, double bx, double by, double ox, double oy, double obx, double oby, bool collision) {
-	
+static double normalize_angle(double angle) {
+	// Normalize angle to the range [-pi, pi]
+	while (angle > 3.14159) angle -= 2 * 3.14159;
+	while (angle < -3.14159) angle += 2 * 3.14159;
+	return angle;
+}
+DriveCmd decide_cmd(double fx, double fy, double bx, double by, double ofx, double ofy, double obx, double oby, double theta) {
+	/*
 	//OUR position
 	double x = (fx + bx) *0.5, y = (fy + by) *0.5;
 	double theta = atan2(fy - by, fx - bx);
@@ -55,10 +62,10 @@ WheelCmd decide_cmd(double fx, double fy, double bx, double by, double ox, doubl
 	double dx = ox2 - x, dy = oy2 - y;
 	double dist = std::hypot(dx, dy);
 	double err = atan2(sin((dy,dx) - theta), cos((dy,dx) - theta));		//- pi to pi range
-
+	*/
 	int vl = 0, vr = 0;
 	const int MAX = 90;
-
+	/*
 	if(collision) {
 		vl = -MAX;
 		vr = MAX;
@@ -72,8 +79,30 @@ WheelCmd decide_cmd(double fx, double fy, double bx, double by, double ox, doubl
 		vl = vr = -MAX;		//reverse max speed
 	}
 
-	WheelCmd c;
-	c.left = clamp_pwm(STOP + vl);
-	c.right = clamp_pwm(STOP + vr);
-	return c;
+	
+	*/
+	double ox = (ofx + obx) * 0.5;
+	double oy = (ofy + oby) * 0.5;
+	double cx = (fx + bx) * 0.5;
+	double cy = (fy + by) * 0.5;
+	double dx = ox - cx;
+	double dy = oy - cy;
+
+	
+	double goal_theta = atan2(dy, dx);
+	double angle_diff = normalize_angle(goal_theta - theta);
+
+	if (fabs(angle_diff) < 0.2) {
+		return DriveCmd::FWD;	//move straight
+	}
+	else if (angle_diff > 0) {
+		return DriveCmd::LEFT;
+	}//rotate left
+	else {
+		return DriveCmd::RIGHT;
+	}//rotate right
+	//WheelCmd c;
+	//c.left = clamp_pwm(STOP + vl);
+	//c.right = clamp_pwm(STOP + vr);
+	//return c;
 }

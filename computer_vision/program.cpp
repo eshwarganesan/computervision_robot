@@ -388,9 +388,9 @@ int run_sim() {
 		double goal_theta = atan2(dy + repulse_y, dx + repulse_x);
 		double angle_diff = normalize_angle(goal_theta - theta);
 
-		if (fabs(angle_diff) < 0.2) { pw_l_o = 1500 - dpw; pw_r_o = 1500 + dpw; }
-		else if (angle_diff > 0) { pw_l_o = 1500 + dpw; pw_r_o = 1500 + dpw; }
-		else { pw_l_o = 1500 - dpw; pw_r_o = 1500 - dpw; }
+		if (fabs(angle_diff) < 0.2) { pw_l_o = 1500 - dpw; pw_r_o = 1500 + dpw; }//move straight
+		else if (angle_diff > 0) { pw_l_o = 1500 + dpw; pw_r_o = 1500 + dpw; }//rotate left
+		else { pw_l_o = 1500 - dpw; pw_r_o = 1500 - dpw; }//rotate right
 
 		/*
 		cout << "\rFront x: " << front_x
@@ -459,37 +459,50 @@ int run_vision() {
 	centroid(a, label, nlabel, ic, jc);
 
 	double fx = 0, fy = 0, bx = 0, by = 0;
+	double ofx = 630, ofy = 470, obx = 600, oby = 440;
+	double ox = 260, oy = 500; //center of opponent
 	cout << "\n";
 	while (1) {
 		acquire_image(rgb1, cam_number);
 
 		get_front_centroid(fx, fy);
 		get_back_centroid(bx, by);
-
+		double cx = (fx + bx) / 2.0;
+		double cy = (fy + by) / 2.0;
+		double theta = get_orientation(fx, fy, bx, by);
 		cout << "\rFront centroid x: " << fx << " y: " << fy << "  Back centroid x: " << bx << " y: " << by << flush;
 
 		draw_point_rgb(rgb1, fx, fy, 0, 0, 255); //green centroin point
 		draw_point_rgb(rgb1, bx, by, 0, 0, 255); //red centroid point
 
-		//nlabels = label_objects(tvalue);
-		//track_object(nlabel, ic, jc);
+		//get_opponent_front_centroid(ox, oy);
+		//get_opponent_back_centroid(obx, oby);
+
+		//cout << "\rFront centroid x: " << fx << " y: " << fy << "  Back centroid x: " << bx << " y: " << by << flush;
+
+		draw_point_rgb(rgb1, fx, fy, 0, 0, 255); //green centroin point
+		draw_point_rgb(rgb1, bx, by, 0, 0, 255); //red centroid point
+	
+		draw_point_rgb(rgb1, ox, oy, 0, 0, 255); //green centroin point for opp
+		draw_point_rgb(rgb1, obx, oby, 0, 0, 255); //red centroid point for opp
 	
 	
-		view_rgb_image(rgb1);
+		
 
 		bool avoid = check_collision(fx, fy, bx, by, sim_robot_length*0.5, sim_robot_width*0.5, obs_x, obs_y, obs_r, N_OBS);
 
-		WheelCmd cmd = decide_cmd(fx, fy, bx, by, 0, 0, 0, 0, avoid); //add ox, oy, obx, oby for opponent but 0 for now
+		DriveCmd cmd = decide_cmd(fx, fy, bx, by, ofx, ofy, obx, oby, theta); //add ox, oy, obx, oby for opponent but 0 for now
 
 		send_cmd(cmd);
 
 		
-
+		view_rgb_image(rgb1);
 		if (KEY('X')) {
-			WheelCmd stop{ 128, 128 };
-			send_cmd(stop);
+			//WheelCmd stop{ 128, 128 };
+			send_cmd(DriveCmd::STOP);
 			break;
 		}
+		Sleep(10);
 	}
 
 	//while (1) {
