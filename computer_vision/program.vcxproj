@@ -138,6 +138,7 @@
   <ItemGroup>
     <ClCompile Include="program.cpp" />
     <ClCompile Include="robot.cpp" />
+    <ClCompile Include="robot_controller.cpp" />
     <ClCompile Include="shared_memory.cpp" />
     <ClCompile Include="timer.cpp" />
     <ClCompile Include="update_simulation.cpp" />
@@ -155,6 +156,15 @@
     <Image Include="output.bmp" />
     <Image Include="robot_A.bmp" />
     <Image Include="robot_B.bmp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="image_transfer.h" />
+    <ClInclude Include="robot.h" />
+    <ClInclude Include="robot_controller.h" />
+    <ClInclude Include="shared_memory.h" />
+    <ClInclude Include="timer.h" />
+    <ClInclude Include="vision.h" />
+    <ClInclude Include="vision_simulation.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

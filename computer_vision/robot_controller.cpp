@@ -3,15 +3,18 @@
 #include <algorithm>
 #include <iostream>
 
+Mode g_mode = ATTACK;		//default mode
+
 static HANDLE hSer = INVALID_HANDLE_VALUE;
 static constexpr uint8_t STOP = 128;		//neutral PWM
 
-bool open_bet(const char* com) {
+bool open_bt(const char* com) {
 	hSer = CreateFileA(com, GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
 	if (hSer == INVALID_HANDLE_VALUE) {
 		std::cerr << "Opening Bluetooth failed\n";
 		return false;
 	}
+	//bluetooth baud rate, parity, and other comms settings
 	DCB dcb{};
 	dcb.DCBlength = sizeof(dcb);
 	GetCommState(hSer, &dcb);
@@ -35,20 +38,23 @@ void send_cmd(const WheelCmd &c) {
 	DWORD n; WriteFile(hSer, pkt, 3, &n, nullptr);
 }
 
-static uint8_t clamp_pwm(int v) { return uint8_t(std::clamp(v, 0, 255)); }
+static uint8_t clamp_pwm(int v) {
+	if (v < 0) return 0;
+	if (v > 255) return 255;
+	return uint8_t(v);
+}
 
-WheelCmd decide_cmd(double fx, double fy, double bx, double by, double ox, double oy, double obx, double oby) {
+WheelCmd decide_cmd(double fx, double fy, double bx, double by, double ox, double oy, double obx, double oby, bool collision) {
 	
 	//OUR position
-	double x = (fx + bx) / 2, y = (fy + by) / 2;
+	double x = (fx + bx) *0.5, y = (fy + by) *0.5;
 	double theta = atan2(fy - by, fx - bx);
 
 	//OPPONENT position
-	double ox2 = (ox + obx) / 2, oy2 = (oy + oby) / 2;
+	double ox2 = (ox + obx) *0.5, oy2 = (oy + oby) *0.5;
 	double dx = ox2 - x, dy = oy2 - y;
 	double dist = std::hypot(dx, dy);
-	double bearing = atan2(dy, dx);
-	double err = atan2(sin(bearing - theta), cos(bearing - theta));		//- pi to pi range
+	double err = atan2(sin((dy,dx) - theta), cos((dy,dx) - theta));		//- pi to pi range
 
 	int vl = 0, vr = 0;
 	const int MAX = 90;
@@ -63,11 +69,11 @@ WheelCmd decide_cmd(double fx, double fy, double bx, double by, double ox, doubl
 
 	}
 	else {
-		vl = vr = -MAX;
+		vl = vr = -MAX;		//reverse max speed
 	}
 
 	WheelCmd c;
-	c.left = clamp_pwm(128 + vl);
-	c.right = clamp_pwm(128 + vr);
+	c.left = clamp_pwm(STOP + vl);
+	c.right = clamp_pwm(STOP + vr);
 	return c;
 }

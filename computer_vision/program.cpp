@@ -45,6 +45,8 @@ int object_area(image& label, int nlabel);
 double get_orientation(double front_ic, double front_jc, double back_ic, double back_jc);
 int get_front_centroid(double& front_x, double& front_y);
 int get_back_centroid(double& back_x, double& back_y);
+int get_opponent_front_centroid(double& front_x, double& front_y);
+int get_opponent_back_centroid(double& back_x, double& back_y);
 bool check_collision(double front_x, double front_y, double back_x, double back_y, double L, double W, const double* obstacle_x, const double* obstacle_y, const double* obstacle_r, int N_OBS);
 
 // declare some global image structures (globals are bad, but easy)
@@ -57,9 +59,20 @@ int	tvalue = 79; // threshold value
 const int IMAGE_WIDTH = 640;
 const int IMAGE_HEIGHT = 480;
 int mod;
-int cam_number = 0;
+int cam_number = 0;		// for external cam on Ricky's laptop
 double sim_robot_width = 52.5;
 double sim_robot_length = 61.0;
+//defining obstacles
+const int N_OBS = 2;
+double obs_x[N_OBS] = { 270.5, 135.0 };
+double obs_y[N_OBS] = { 270.5, 135.0 };
+double obs_r[N_OBS] = { 35.0, 35.0 };
+const int BLACK_THRESH = 50;	//threshold for black color detection
+const double OUTLINE_FRACTION = 0.3;	//fraction robot's colour circle thatt can be black (<0.3 currently)
+
+extern robot_system S1;
+int activate();
+int deactivate();
 
 int main()
 { 
@@ -455,35 +468,49 @@ int run_sim() {
 
 int run_vision() {
 
-	int width, height;
 	i2byte nlabel;
 	double ic, jc;
 
 	ic = 200;
 	jc = 300;
 
-	// set camera number (normally 0 or 1)
-	cam_number = 0;			// Should be 0 for external camera
-	width = 640;
-	height = 480;
+	int cam_number = 0;			// Should be 0 for external camera
+	int width = 640;
+	int height = 480;
 
-	activate_camera(cam_number, height, width);	// activate camera
+	activate_camera(cam_number, IMAGE_HEIGHT, IMAGE_WIDTH);	// activate camera
 
 	//acquire_image(rgb0, cam_number); // acquire an image from a video source (RGB format)	
 
-	// label objects in the image
+	//label objects in the image
 	label_objects(tvalue);
-
-	// object selection
-	select_object(nlabel, label, a, b);
+	select_object(nlabel, label, a, b); // select an object to track
 
 	// tracking
 	centroid(a, label, nlabel, ic, jc);
 
 	while (1) {
 		acquire_image(rgb0, cam_number);
-		track_object(nlabel, ic, jc);
-		view_rgb_image(rgb0, 0);
+
+		double fx=0, fy=0, bx=0, by=0;
+		if (get_front_centroid(fx, fy) != 0 || get_back_centroid(bx, by) != 0) {
+			view_rgb_image(rgb0, 1);
+			if (KEY('X')) break;
+			continue;
+		}
+
+		double ox=0, oy=0, obx=0, oby=0;
+		//get_opponent_front_centroid(ox, oy);
+		//get_opponent_back_centroid(obx, oby);
+		
+		bool avoid = check_collision(fx, fy, bx, by, sim_robot_length*0.5, sim_robot_width*0.5, obs_x, obs_y, obs_r, N_OBS);
+
+		WheelCmd cmd = decide_cmd(fx, fy, bx, by, ox, oy, obx, oby, avoid);
+
+		send_cmd(cmd);
+
+		view_rgb_image(rgb0, 1);
+
 		if (KEY('X')) break;
 	}
 	
@@ -782,6 +809,57 @@ int filter_color(image& a, image& b, double hue, double sat, double value, doubl
 
 }
 
+static void build_black_mask(image& blackmask) {
+	copy(rgb0, blackmask);
+	threshold(blackmask, blackmask, BLACK_THRESH);
+	invert(blackmask, blackmask);
+}
+
+static bool has_black_outline(int lbl, image& labelImg, image& blackmask) {
+	int W = labelImg.width, H = labelImg.height;
+
+	image region;
+	region.type = GREY_IMAGE;
+	region.width = W;
+	region.height = H;
+	allocate_image(region);
+
+	for (int i = 0, n = W * H; i < n; ++i) {
+		region.pdata[i] = (((i2byte*)*labelImg.pdata)[i] == lbl ? 255 : 0);
+
+		image dilated;
+		dilated.type = GREY_IMAGE;
+		dilated.width = W;
+		dilated.height = H;
+		allocate_image(dilated);
+		dialate(region, dilated);
+
+		image ring;		//ring = dilated - region
+		ring.type = GREY_IMAGE;
+		ring.width = W;
+		ring.height = H;
+		allocate_image(ring);
+
+		invert(region, region);
+		filter_color(dilated, ring, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);	//ring = pixels were dilated ==255 AND region(inverted) ==255
+		int ringCount = 0, blackCount = 0;
+		for (int i = 0, n = W * H; i < n; ++i) {	//counting ring pixels and verifying == to blackmask
+			if (ring.pdata[i]) {
+				++ringCount;
+				if (blackmask.pdata[i]) {
+					++blackCount;
+				}
+			}
+		}
+		free_image(region);
+		free_image(dilated);
+		free_image(ring);
+
+		return ringCount > 0 && (double)blackCount / ringCount >= OUTLINE_FRACTION;
+
+	}
+}
+
 int object_area(image& label, int nlabel) {
 	ibyte* pl;
 	i4byte size, i;
@@ -807,29 +885,82 @@ double get_orientation(double front_ic, double front_jc, double back_ic, double 
 int get_front_centroid(double &front_x, double &front_y) {
 	filter_color(rgb1, rgb0, 153.0, 0.6, 0.7, 5.0, 0.1, 0.1); // GREEN
 	int nlabels = label_objects(tvalue);
-	int area;
+	image blackmask;
+	blackmask.type = GREY_IMAGE;
+	blackmask.width = IMAGE_WIDTH;
+	blackmask.height = IMAGE_HEIGHT;
+	allocate_image(blackmask);
+	build_black_mask(blackmask);
 	for (int i = 1; i <= nlabels; i++) {
-		area = object_area(label, i);
-		if (area <= 700) {
-			centroid(a, label, i, front_x, front_y);
-			break;
-		}
+		int area = object_area(label, i);
+		if (area < 100 || area >4000) continue;
+		if (!has_black_outline(i, label, blackmask)) continue;
+		centroid(a, label, i, front_x, front_y);
+		free_image(blackmask);
+		return 0;
 	}
-	return 0;
+	free_image(blackmask);
+	return 1;
 }
 
 int get_back_centroid(double& back_x, double& back_y) {
 	filter_color(rgb1, rgb0, 5.0, 0.65, 0.89, 2, 0.05, 0.05);  // RED
 	int nlabels = label_objects(tvalue);
-	int area;
+	image blackmask;
+	blackmask.type = GREY_IMAGE;
+	blackmask.width = IMAGE_WIDTH;
+	blackmask.height = IMAGE_HEIGHT;
+	allocate_image(blackmask);
+	build_black_mask(blackmask);
 	for (int i = 1; i <= nlabels; i++) {
-		area = object_area(label, i);
-		if (area <= 700) {
-			centroid(a, label, i, back_x, back_y);
-			break;
-		}
+		int area = object_area(label, i);
+		if (area < 100 || area >4000) continue;
+		if (!has_black_outline(i, label, blackmask)) continue;
+		centroid(a, label, i, back_x, back_y);
+		free_image(blackmask);
+		return 0;
 	}
-	return 0;
+	free_image(blackmask);
+	return 1;
+}
+
+int get_opponent_front_centroid(double &front_x, double &front_y)
+{
+	filter_color(rgb1, rgb0, 30.0, 0.6, 0.8, 10.0, 0.2, 0.2); //ORANGE
+	int nlabels = label_objects(tvalue);
+
+	image blackmask = { GREY_IMAGE, IMAGE_WIDTH, IMAGE_HEIGHT, nullptr };
+	allocate_image(blackmask);
+	build_black_mask(blackmask);
+	for (int i = 1; i <= nlabels; i++) {
+		int area = object_area(label, i);
+		if (area < 100 || area >4000) continue;
+		if (!has_black_outline(i, label, blackmask)) continue;
+		centroid(a, label, i, front_x, front_y);
+		free_image(blackmask);
+		return 0;
+	}
+	free_image(blackmask);
+	return 1;
+}
+
+int get_opponent_back_centroid(double &back_x, double &back_y)
+{
+	filter_color(rgb1, rgb0, 210.0, 0.6, 0.7, 10.0, 0.2, 0.2); //BLUE
+	int nlabels = label_objects(tvalue);
+
+	image blackmask = { GREY_IMAGE, IMAGE_WIDTH, IMAGE_HEIGHT, nullptr };
+	allocate_image(blackmask);
+	build_black_mask(blackmask);
+	for (int i = 1; i <= nlabels; i++) {
+		int area = object_area(label, i);
+		if (area < 100 || area >4000) continue;
+		if (!has_black_outline(i, label, blackmask)) continue;
+		centroid(a, label, i, back_x, back_y);
+		free_image(blackmask);
+		return 0;
+	}
+	free_image(blackmask);
 }
 
 bool check_collision(double front_x, double front_y, double back_x, double back_y, double half_L, double half_W, const double* obstacle_x, const double* obstacle_y, const double* obstacle_r, int N_OBS) {
