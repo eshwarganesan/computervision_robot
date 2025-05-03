@@ -165,17 +165,29 @@ int run_test() {
 	//sobel edge detection
 	///*
 
-	filter_colors(rgb1, rgb0, filters, 1);
+	filter_colors(rgb1, rgb0, filters, 5);
 	view_rgb_image(rgb0);
 	cout << "\ncolors filtered";
 	pause();
 
-	nlabels = label_objects(tvalue);
+	nlabels = label_objects(200);
 	int area;
-	
+	copy(a, rgb1);
 	view_rgb_image(rgb1);
-	cout << "\nobstacles detected";
+	cout << "\nlabeling";
 	pause();
+
+	for (int i = 1; i <= nlabels; i++) {
+		area = object_area(label, i);
+		centroid(a, label, nlabels, ic, jc);
+		draw_point_rgb(rgb1, ic, jc, 255, 0, 0);
+		cout << "\nArea: " << area;
+		view_rgb_image(rgb1);
+		pause();
+	}
+	
+	
+	
 
 	//*/
 
@@ -1141,7 +1153,7 @@ int get_obstacles(double* x_vals, double* y_vals, int n_obs) {
 		{ 220.0, 0.07, 0.2, 100.0, 0.05, 0.05 }//black
 	};
 
-	filter_colors(rgb1, rgb0, filters, 1);
+	filter_colors(rgb1, rgb0, filters, 5);
 
 	int nlabels = label_objects(tvalue);
 	int area;
