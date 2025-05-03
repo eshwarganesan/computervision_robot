@@ -9,6 +9,7 @@
 #include <vector>
 #include <algorithm>
 #include <functional>
+#include <filesystem>
 
 using namespace std;
 
@@ -60,7 +61,7 @@ image a,b,rgb1;
 image rgb0; // original image before processing
 image label;
 
-int	tvalue = 79; // threshold value
+int	tvalue = 120; // threshold value
 
 const int IMAGE_WIDTH = 640;
 const int IMAGE_HEIGHT = 480;
@@ -135,11 +136,13 @@ int main()
 }
 
 int run_test() {
+	save_rgb_image("goodpic.png", rgb1);
+
 
 	int nlabels;
 	double ic, jc;
 
-	load_rgb_image("output.bmp", rgb1);
+	load_rgb_image("goodpic.bmp", rgb1);
 	view_rgb_image(rgb1);
 	cout << "\ntest image rgb";
 	pause();
@@ -500,6 +503,7 @@ int run_sim() {
 int run_vision() {
 
 	i2byte nlabel;
+	int nlabels = 0;
 	double ic, jc;
 
 	ic = 200;
@@ -509,36 +513,39 @@ int run_vision() {
 	int width = 640;
 	int height = 480;
 
-	activate_camera(cam_number, IMAGE_HEIGHT, IMAGE_WIDTH);	// activate camera
+	activate_camera(cam_number, height, width);	// activate camera
 
-	//acquire_image(rgb0, cam_number); // acquire an image from a video source (RGB format)	
+	acquire_image(rgb0, cam_number); // acquire an image from a video source (RGB format)	
 
 	//label objects in the image
 	label_objects(tvalue);
 	select_object(nlabel, label, a, b); // select an object to track
 
 	// tracking
-	centroid(a, label, nlabel, ic, jc);
+	//centroid(a, label, nlabel, ic, jc);
+	double fx = 0, fy = 0, bx = 0, by = 0;
+	get_front_centroid(fx, fy);
+	get_back_centroid(bx, by);
+
+	double ox = 0, oy = 0, obx = 0, oby = 0;
+	//get_opponent_front_centroid(ox, oy);
+	//get_opponent_back_centroid(obx, oby);
+
 
 	while (1) {
 		acquire_image(rgb0, cam_number);
+		copy(rgb0, a);
+		scale(a, a);
+		//threshold(a, a, tvalue);
+		//invert(a, a);
+		label_image(a, label, nlabels);
+		centroid(a, label, nlabel, fx, fy);
+		draw_point_rgb(rgb0, fx, fy, 0, 0, 255);
+		//bool avoid = check_collision(fx, fy, bx, by, sim_robot_length*0.5, sim_robot_width*0.5, obs_x, obs_y, obs_r, N_OBS);
 
-		double fx=0, fy=0, bx=0, by=0;
-		if (get_front_centroid(fx, fy) != 0 || get_back_centroid(bx, by) != 0) {
-			view_rgb_image(rgb0, 1);
-			if (KEY('X')) break;
-			continue;
-		}
+		//WheelCmd cmd = decide_cmd(fx, fy, bx, by, ox, oy, obx, oby, avoid);
 
-		double ox=0, oy=0, obx=0, oby=0;
-		//get_opponent_front_centroid(ox, oy);
-		//get_opponent_back_centroid(obx, oby);
-		
-		bool avoid = check_collision(fx, fy, bx, by, sim_robot_length*0.5, sim_robot_width*0.5, obs_x, obs_y, obs_r, N_OBS);
-
-		WheelCmd cmd = decide_cmd(fx, fy, bx, by, ox, oy, obx, oby, avoid);
-
-		send_cmd(cmd);
+		//send_cmd(cmd);
 
 		view_rgb_image(rgb0, 1);
 
@@ -1117,5 +1124,4 @@ void sobel_edge_detection(const image& input, image& output) {
 			out[y * w + x] = (ibyte)magnitude;
 		}
 	}
-}
 }

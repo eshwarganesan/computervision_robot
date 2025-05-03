@@ -148,6 +148,9 @@
   <ItemGroup>
     <Image Include="a.bmp" />
     <Image Include="background.bmp" />
+    <Image Include="goodpic.bmp" />
+    <Image Include="goodpic.png" />
+    <Image Include="irlpic.bmp" />
     <Image Include="obstacle_black.bmp" />
     <Image Include="obstacle_blue.bmp" />
     <Image Include="obstacle_green.bmp" />
