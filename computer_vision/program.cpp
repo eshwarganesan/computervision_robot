@@ -40,6 +40,7 @@ struct HSVFilter {
 	double v_tol;
 };
 
+
 int activate();
 int deactivate();
 int run_sim();
@@ -149,12 +150,12 @@ int run_test() {
 	double ic, jc;
 	const int N_OBS = 2;
 	double x_obs[N_OBS], y_obs[N_OBS], r_obs[N_OBS];
-	HSVFilter filters[] = {
+		HSVFilter filters[] = {
 		{153.0, 0.6, 0.7, 5.0, 0.1, 0.1},
 		{5.0, 0.65, 0.89, 2.0, 0.05, 0.05},
 		{30.0, 0.5, 1.0, 2.0, 0.05, 0.1},
 		{203.0, 0.8, 0.89, 5.0, 0.05, 0.05},
-		{220.0, 0.07, 0.2, 100.0, 0.05, 0.05}
+		{220.0, 0.07, 0.2, 120.0, 0.1, 0.1}
 	};
 
 	load_rgb_image("output.bmp", rgb1);
@@ -164,29 +165,56 @@ int run_test() {
 
 	//sobel edge detection
 	///*
+	///*
+	get_obstacles(x_obs, y_obs, N_OBS);
 
-	filter_colors(rgb1, rgb0, filters, 5);
-	view_rgb_image(rgb0);
-	cout << "\ncolors filtered";
-	pause();
 
+	/*
 	nlabels = label_objects(200);
 	int area;
-	copy(a, rgb1);
-	view_rgb_image(rgb1);
+	copy(a, rgb0);
+	view_rgb_image(rgb0);
 	cout << "\nlabeling";
 	pause();
+	*/
+	
 
+	/*
 	for (int i = 1; i <= nlabels; i++) {
+		centroid(a, label, i, ic, jc);
+		copy(a, rgb0);
+		draw_point_rgb(rgb0, (int)ic, (int)jc, 255, 0, 0);
+		cout << "\ncentroid: ic = " << ic << " jc = " << jc;
 		area = object_area(label, i);
-		centroid(a, label, nlabels, ic, jc);
-		draw_point_rgb(rgb1, ic, jc, 255, 0, 0);
 		cout << "\nArea: " << area;
-		view_rgb_image(rgb1);
+		view_rgb_image(rgb0);
 		pause();
 	}
-	
-	
+	*/
+	/*
+	for (int i = 0; i < 2; i++) {
+		area = object_area(label, i + 1);
+		if (area > 1500 && area < 4500) {
+			double ic, jc;
+			centroid(a, label, i + 1, ic, jc);
+			x_obs[i] = ic;
+			y_obs[i] = jc;
+		}
+	}
+
+	for (int i = 0; i < 2; i++) {
+		cout << "\nx: " << x_obs[i] << " y: " << y_obs[i];
+	}
+
+	*/
+	//*/
+	//copy(rgb0, a);
+	//sobel_edge_detection(a, b);
+	//copy(b, rgb0);
+	//view_rgb_image(rgb0);
+	//cout << "\n sobel edges";
+	//pause();
+
 	
 
 	//*/
@@ -445,6 +473,7 @@ int run_sim() {
 
 	get_front_centroid(front_x, front_y);
 	get_back_centroid(back_x, back_y);
+	get_obstacles(x_obs, y_obs, N_obs);
 
 	while (1) {
 
@@ -490,6 +519,9 @@ int run_sim() {
 		track_object(nlabel, front_x, front_y);
 		track_object(nlabel, back_x, back_y);
 		theta = get_orientation(front_x, front_y, back_x, back_y);
+		for (int i = 0; i < N_obs; i++) {
+			draw_point_rgb(rgb0, (int)x_obs[i], (int)y_obs[i], 255, 0, 0);
+		}
 		
 		/*
 		cout << "\rFront x: " << front_x
@@ -911,11 +943,11 @@ static bool has_black_outline(int lbl, image& labelImg, image& blackmask) {
 }
 
 int object_area(image& label, int nlabel) {
-	ibyte* pl;
+	i2byte* pl;
 	i4byte size, i;
 
 	int area = 0;
-	pl = label.pdata;
+	pl = (i2byte*)label.pdata;
 
 	size = label.height * label.width;
 	for (i = 0; i < size; i++) {
@@ -1152,25 +1184,47 @@ int get_obstacles(double* x_vals, double* y_vals, int n_obs) {
 		{ 203.0, 0.8, 0.89, 5.0, 0.05, 0.05 },//blue
 		{ 220.0, 0.07, 0.2, 100.0, 0.05, 0.05 }//black
 	};
-
 	filter_colors(rgb1, rgb0, filters, 5);
 
-	int nlabels = label_objects(tvalue);
+	int nlabels = label_objects(150);
 	int area;
 
-	cout << "label image";
-	copy(a, rgb0);
-	view_rgb_image(rgb0);
-	pause();
+	int top_labels[50];
+	int top_areas[50];
 
 	for (int i = 0; i < n_obs; i++) {
+		top_labels[i] = -1;
+		top_areas[i] = -1;
+	}
+
+	for (int i = 0; i < nlabels; i++) {
 		area = object_area(label, i+1);
-		if (area > 700 && area < 4000) {
-			double ic, jc;
-			centroid(a, label, i+1, ic, jc);
-			x_vals[i] = ic;
-			y_vals[i] = jc;
+		for (int j = 0; j < n_obs; j++) {
+			if (area > top_areas[j]) {
+				// Shift down smaller values
+				for (int k = n_obs - 1; k > j; k--) {
+					top_areas[k] = top_areas[k - 1];
+					top_labels[k] = top_labels[k - 1];
+				}
+				top_areas[j] = area;
+				top_labels[j] = i + 1;
+				break;
+			}
 		}
 	}
+
+	for (int i = 0; i < n_obs; i++) {
+		if (top_labels[i] == -1) {
+			x_vals[i] = -1; 
+			y_vals[i] = -1;
+			continue;
+		}
+		double ic, jc;
+		centroid(a, label, top_labels[i], ic, jc);
+		x_vals[i] = ic;
+		y_vals[i] = jc;
+	}
+
 	return 0;
 }
+
