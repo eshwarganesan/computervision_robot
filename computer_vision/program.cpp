@@ -1,4 +1,4 @@
-
+﻿
 #include <cstdio>
 #include <cmath>
 #include <cstdlib>
@@ -6,6 +6,9 @@
 #include <fstream>
 #include <Windows.h>
 #include <cstdint>
+#include <vector>
+#include <algorithm>
+#include <functional>
 
 using namespace std;
 
@@ -48,6 +51,9 @@ int get_back_centroid(double& back_x, double& back_y);
 int get_opponent_front_centroid(double& front_x, double& front_y);
 int get_opponent_back_centroid(double& back_x, double& back_y);
 bool check_collision(double front_x, double front_y, double back_x, double back_y, double L, double W, const double* obstacle_x, const double* obstacle_y, const double* obstacle_r, int N_OBS);
+bool has_line_of_sight(double x1, double y1, double x2, double y2);
+int filter_obstacles();
+void sobel_edge_detection(const image& input, image& output);
 
 // declare some global image structures (globals are bad, but easy)
 image a,b,rgb1;
@@ -138,6 +144,29 @@ int run_test() {
 	cout << "\ntest image rgb";
 	pause();
 
+	//sobel edge detection
+	///*
+
+	copy(rgb1, a);
+	copy(a, rgb1);
+	view_rgb_image(rgb1);
+	cout << "\n image greyscale";
+	pause();
+
+	sobel_edge_detection(a, b);
+	copy(b, rgb1);
+	view_rgb_image(rgb1);
+	cout << "\n sobel edge";
+	pause();
+
+	threshold(b, a, 200);
+	copy(a, rgb1);
+	view_rgb_image(rgb1);
+	cout << "\nthreshold";
+	pause();
+
+	//*/
+
 	//filter_color(rgb0, rgb1, 5.0, 0.7, 0.88, 5.0, 0.1, 0.1);
 	//filter_color(rgb0, rgb1, 153.0, 0.6, 0.7, 5.0, 0.1, 0.1);
 	/*
@@ -203,7 +232,7 @@ int run_test() {
 		}
 	}
 	*/
-	///*
+	/*
 	copy(rgb1, a);
 
 	copy(a, rgb1);    // convert to RGB image format
@@ -225,7 +254,7 @@ int run_test() {
 	cout << "\nimage after filter function is applied";
 	pause();
 
-	threshold(a, b, 79);
+	threshold(a, b, 200);
 	copy(b, a);
 	copy(a, rgb1); // convert to RGB image format
 	view_rgb_image(rgb1);
@@ -261,7 +290,8 @@ int run_test() {
 	
 
 	label_image(a, label, nlabels);
-	//*/
+	*/
+	/*
 	for (int i = 1; i <= nlabels; i++)
 	{
 
@@ -281,6 +311,7 @@ int run_test() {
 		cout << "\nobject area = " << area;
 		pause();
 	}
+	*/
 	///*
 	
 	
@@ -1019,4 +1050,72 @@ bool check_collision(double front_x, double front_y, double back_x, double back_
 	}
 
 	return false; // No collision
+}
+
+bool has_line_of_sight(double x1, double y1, double x2, double y2) {
+	int steps = static_cast<int>(hypot(x2 - x1, y2 - y1));
+	if (steps == 0) return true;
+
+	double dx = (x2 - x1) / steps;
+	double dy = (y2 - y1) / steps;
+
+	ibyte* pdata = (ibyte*)label.pdata;
+	int width = label.width;
+	int height = label.height;
+
+	for (int i = 0; i <= steps; ++i) {
+		int xi = static_cast<int>(x1 + i * dx + 0.5);
+		int yi = static_cast<int>(y1 + i * dy + 0.5);
+
+		if (xi < 0 || xi >= width || yi < 0 || yi >= height) return false; // out of bounds
+
+		if (pdata[yi * width + xi] > 0) return false; // obstacle in the way
+	}
+	return true; // clear path
+}
+
+void sobel_edge_detection(const image& input, image& output) {
+	if (input.type != GREY_IMAGE || output.type != GREY_IMAGE ||
+		input.width != output.width || input.height != output.height) {
+		cout << "Error: input and output images must be GREY_IMAGE type and same size." << endl;
+		return;
+	}
+
+	int w = input.width;
+	int h = input.height;
+	ibyte* in = (ibyte*)input.pdata;
+	ibyte* out = (ibyte*)output.pdata;
+
+	// Sobel kernels
+	int Gx[3][3] = {
+		{ -1,  0,  1 },
+		{ -2,  0,  2 },
+		{ -1,  0,  1 }
+	};
+	int Gy[3][3] = {
+		{ -1, -2, -1 },
+		{  0,  0,  0 },
+		{  1,  2,  1 }
+	};
+
+	// Ignore border pixels
+	for (int y = 1; y < h - 1; ++y) {
+		for (int x = 1; x < w - 1; ++x) {
+			int sumX = 0, sumY = 0;
+
+			// Apply kernels
+			for (int ky = -1; ky <= 1; ++ky) {
+				for (int kx = -1; kx <= 1; ++kx) {
+					int pixel = in[(y + ky) * w + (x + kx)];
+					sumX += Gx[ky + 1][kx + 1] * pixel;
+					sumY += Gy[ky + 1][kx + 1] * pixel;
+				}
+			}
+
+			int magnitude = (int)sqrt(sumX * sumX + sumY * sumY);
+			magnitude = min(255, max(0, magnitude));  // Clamp to 0�255
+			out[y * w + x] = (ibyte)magnitude;
+		}
+	}
+}
 }
