@@ -536,8 +536,8 @@ int run_vision() {
 		acquire_image(rgb0, cam_number);
 		copy(rgb0, a);
 		scale(a, a);
-		//threshold(a, a, tvalue);
-		//invert(a, a);
+		threshold(a, a, tvalue);
+		invert(a, a);
 		label_image(a, label, nlabels);
 		centroid(a, label, nlabel, fx, fy);
 		draw_point_rgb(rgb0, fx, fy, 0, 0, 255);
