@@ -64,6 +64,8 @@ bool has_line_of_sight(double x1, double y1, double x2, double y2);
 void sobel_edge_detection(const image& input, image& output);
 int get_obstacles(double* x_vals, double* y_vals, int n_obs);
 double normalize_angle(double angle);
+int get_front_centroid_sim(double& front_x, double& front_y);
+int get_back_centroid_sim(double& back_x, double& back_y);
 
 // declare some global image structures (globals are bad, but easy)
 image a,b,rgb1;
@@ -159,7 +161,7 @@ int run_test() {
 		{220.0, 0.07, 0.2, 120.0, 0.1, 0.1}
 	};
 
-	load_rgb_image("screenshot.bmp", rgb1);
+	load_rgb_image("output.bmp", rgb1);
 	view_rgb_image(rgb1);
 	cout << "\ntest image rgb";
 	pause();
@@ -175,12 +177,16 @@ int run_test() {
 	cout << "\nback centroid";
 	pause();
 	*/
-	HSVFilter filter[] = { 153.0, 0.5, 0.35, 20.0, 0.2, 0.2 };
+	get_front_centroid_sim(ic, jc);
+	draw_point_rgb(rgb1, (int)ic, (int)jc, 0, 0, 255);
+	view_rgb_image(rgb1);
+	pause();
+	HSVFilter filter[] = { 153.0, 0.5, 0.45, 20.0, 0.3, 0.30 };
 	filter_colors(rgb1, rgb0, filter, 1);
 	view_rgb_image(rgb0);
 	cout << "\ngreen filter";
 	pause();
-	nlabels = label_objects(80);
+	nlabels = label_objects(140);
 	copy(a, rgb0);
 	view_rgb_image(rgb0);
 	cout << "\nlabeling";
@@ -311,8 +317,8 @@ int run_sim() {
 	// initial simulation setup
 	acquire_image_sim(rgb1);
 
-	get_front_centroid(front_x, front_y);
-	get_back_centroid(back_x, back_y);
+	get_front_centroid_sim(front_x, front_y);
+	get_back_centroid_sim(back_x, back_y);
 	get_obstacles(x_obs, y_obs, N_obs);
 
 	while (1) {
@@ -1142,4 +1148,39 @@ double normalize_angle(double angle) {
 	while (angle > 3.14159) angle -= 2 * 3.14159;
 	while (angle < -3.14159) angle += 2 * 3.14159;
 	return angle;
+}
+
+int get_front_centroid_sim(double& front_x, double& front_y) {
+	HSVFilter filter[] = { 153.0, 0.5, 0.45, 20.0, 0.3, 0.30 };
+	filter_colors(rgb1, rgb0, filter, 1); // GREEN
+	int nlabels = label_objects(150);
+	int area;
+
+	for (int i = 1; i <= nlabels; i++) {
+		area = object_area(label, i);
+		if (area >= 300 && area <= 1000) { 
+			centroid(a, label, i, front_x, front_y);
+			break;
+		}
+	}
+
+	return 0;
+}
+
+int get_back_centroid_sim(double& back_x, double& back_y) {
+	HSVFilter filter[] = { { 10.0, 0.55, 0.55, 9, 0.4, 0.35 },
+		{350, 0.65, 0.5, 10, 0.2, 0.35} };
+	filter_colors(rgb1, rgb0, filter, 1);  // RED
+	int nlabels = label_objects(tvalue);
+	int area;
+
+	for (int i = 1; i <= nlabels; i++) {
+		area = object_area(label, i);
+		if (area >= 200 && area <= 1000) {
+			centroid(a, label, i, back_x, back_y);
+			break;
+		}
+	}
+
+	return 0;
 }
