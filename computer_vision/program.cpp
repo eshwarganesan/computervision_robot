@@ -1118,15 +1118,16 @@ void sobel_edge_detection(const image& input, image& output) {
 int get_obstacles(double* x_vals, double* y_vals, int n_obs) {
 	HSVFilter filters[] = {
 		{ 153.0, 0.5, 0.35, 20.0, 0.2, 0.2 },//green
-		{ 10.0, 0.65, 0.5, 8.0, 0.3, 0.35 },//red 1
-		{350.0, 0.65, 0.5, 10.0, 0.2, 0.35 },//red 2
-		{ 25.0, 0.6, 0.75, 10.0, 0.2, 0.25 },//orange
+		{ 10.0, 0.65, 0.625, 8, 0.35, 0.375 },//red1
+		{350, 0.65, 0.625, 10, 0.35, 0.375},//red 2
+		{ 25.0, 0.6, 0.75, 10.0, 0.2, 0.25 } ,//orange1
+		{ 12.5, 0.5, 0.7, 7.5, 0.2, 0.3},//orange2
 		{ 30.0, 0.5, 1.0, 2.0, 0.05, 0.1 },//yellow
 		{ 220.0, 0.6, 0.625, 30.0, 0.2, 0.375 },//blue
 		//{ 220.0, 0.07, 0.2, 100.0, 0.05, 0.05 }//black
 		{ 180.0, 0.5, 0.075, 180.0, 0.5, 0.075 }//black
 	};
-	filter_colors(rgb1, rgb0, filters, 7);
+	filter_colors(rgb1, rgb0, filters, 8);
 
 	view_rgb_image(rgb0, 1); //debugging
 	Sleep(500);
