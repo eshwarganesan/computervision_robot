@@ -1129,28 +1129,29 @@ int get_obstacles(double* x_vals, double* y_vals, int n_obs) {
 	};
 	filter_colors(rgb1, rgb0, filters, 8);
 
-	view_rgb_image(rgb0, 1); //debugging
-	Sleep(500);
 
 	int nlabels = label_objects(150);
 	int area;
+	const int min_area = 2000; // Minimum area for an obstacle to be considered
 
-	cout << "amount of obstacles " << nlabels << endl; //more debugging
+	/*cout << "amount of obstacles " << nlabels << endl; //more debugging
 	for (int L = 1; L <= nlabels; ++L) {
 		int A = object_area(label, L);
 		cout << "obstacle: " << L << " area: " << A << endl;
-	}
+	}*/
 
 	int top_labels[50];
 	int top_areas[50];
 
-	for (int i = 0; i < n_obs; i++) {
+	for (int i = 1; i < n_obs; i++) {
 		top_labels[i] = -1;
 		top_areas[i] = -1;
 	}
 
 	for (int i = 0; i < nlabels; i++) {
 		area = object_area(label, i+1);
+		if (area < min_area) continue; // Skip small areas
+		cout << "kept obstacle:" << i + 1 << " area: " << area << endl;
 		for (int j = 0; j < n_obs; j++) {
 			if (area > top_areas[j]) {
 				// Shift down smaller values
@@ -1173,6 +1174,7 @@ int get_obstacles(double* x_vals, double* y_vals, int n_obs) {
 		}
 		double ic, jc;
 		centroid(a, label, top_labels[i], ic, jc);
+		draw_point_rgb(rgb1, int(ic), int(jc), 0, 255, 0);
 		x_vals[i] = ic;
 		y_vals[i] = jc;
 	}
