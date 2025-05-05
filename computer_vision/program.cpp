@@ -881,7 +881,7 @@ double get_orientation(double front_ic, double front_jc, double back_ic, double 
 }
 
 int get_front_centroid(double &front_x, double &front_y) {
-	HSVFilter filter[] = {153.0, 0.5, 0.35, 20.0, 0.2, 0.2};
+	HSVFilter filter[] = {122.5, 0.5, 0.5, 57.5, 0.2, 0.3};
 	filter_colors(rgb1, rgb0, filter, 1); // GREEN
 	int nlabels = label_objects(tvalue);
 	int area;
@@ -937,7 +937,7 @@ int get_back_centroid(double& front_x, double& front_y, double& back_x, double& 
 int get_opponent_front_centroid(double &front_x, double &front_y)
 {
 	HSVFilter filter[] = { 
-		{ 25.0, 0.6, 0.75, 10.0, 0.2, 0.25 } ,
+		{ 25.0, 0.7, 0.7, 10.0, 0.3, 0.3 } ,
 		{ 12.5, 0.5, 0.7, 7.5, 0.2, 0.3}
 	
 	}; //ORANGE
@@ -1109,7 +1109,7 @@ void sobel_edge_detection(const image& input, image& output) {
 			}
 
 			int magnitude = (int)sqrt(sumX * sumX + sumY * sumY);
-			magnitude = min(255, max(0, magnitude));  // Clamp to 0�255
+			magnitude = min(255, max(0, magnitude));  // Clamp to 0-255
 			out[y * w + x] = (ibyte)magnitude;
 		}
 	}
@@ -1132,7 +1132,7 @@ int get_obstacles(double* x_vals, double* y_vals, int n_obs) {
 
 	int nlabels = label_objects(150);
 	int area;
-	const int min_area = 2000; // Minimum area for an obstacle to be considered
+	const int min_area = 700; // Minimum area for an obstacle to be considered
 
 	/*cout << "amount of obstacles " << nlabels << endl; //more debugging
 	for (int L = 1; L <= nlabels; ++L) {
