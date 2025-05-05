@@ -56,9 +56,9 @@ int filter_colors(image& a, image& b, HSVFilter* filters, int num_filters);
 int object_area(image& label, int nlabel);
 double get_orientation(double front_ic, double front_jc, double back_ic, double back_jc);
 int get_front_centroid(double& front_x, double& front_y);
-int get_back_centroid(double& back_x, double& back_y);
+int get_back_centroid(double& front_x, double& front_y, double& back_x, double& back_y);
 int get_opponent_front_centroid(double& front_x, double& front_y);
-int get_opponent_back_centroid(double& back_x, double& back_y);
+int get_opponent_back_centroid(double& front_x, double& front_y, double& back_x, double& back_y);
 bool check_collision(double front_x, double front_y, double back_x, double back_y, double L, double W, const double* obstacle_x, const double* obstacle_y, const double* obstacle_r, int N_OBS);
 bool has_line_of_sight(double x1, double y1, double x2, double y2);
 void sobel_edge_detection(const image& input, image& output);
@@ -465,41 +465,47 @@ int run_vision() {
 	centroid(a, label, nlabel, ic, jc);
 
 	double fx = 0, fy = 0, bx = 0, by = 0;
-	double ofx = 630, ofy = 470, obx = 600, oby = 440;
-	double ox = 260, oy = 500; //center of opponent
+	double ofx = 0, ofy = 0, obx = 0, oby = 0; //used for example 630, 470, 600, 440
+	double ox = 0, oy = 0; //center of opponent example: 260, 500
+	double obs_x[N_OBS] = { 0.0 }, obs_y[N_OBS] = { 0.0 }, obs_r[N_OBS] = { 0.0 };
 	cout << "\n";
 	while (1) {
 		acquire_image(rgb1, cam_number);
 
+		//GET ROBOT
 		get_front_centroid(fx, fy);
-		get_back_centroid(bx, by);
-		double cx = (fx + bx) / 2.0;
-		double cy = (fy + by) / 2.0;
+		get_back_centroid(fx, fy, bx, by);
+
+		//double cx = (fx + bx) / 2.0;
+		//double cy = (fy + by) / 2.0;
 		double theta = get_orientation(fx, fy, bx, by);
-		cout << "\rFront centroid x: " << fx << " y: " << fy << "  Back centroid x: " << bx << " y: " << by << flush;
+		draw_point_rgb(rgb1, fx, fy, 242, 0, 255); // centroin point
+		draw_point_rgb(rgb1, bx, by, 242, 0, 255); //centroid point
 
-		draw_point_rgb(rgb1, fx, fy, 0, 0, 255); //green centroin point
-		draw_point_rgb(rgb1, bx, by, 0, 0, 255); //red centroid point
+		//GET OPPONENT
+		get_opponent_front_centroid(ofx, ofy);
+		get_opponent_back_centroid(ofx, ofy, obx, oby);
+		double ox = (ofx + obx) / 2.0;
+		double oy = (ofy + oby) / 2.0;
+		double theta_opp = get_orientation(ofx, ofy, obx, oby);
+		draw_point_rgb(rgb1, ofx, ofy, 242, 0, 255); //centroid point for opp
+		draw_point_rgb(rgb1, obx, oby, 242, 0, 255); //centroid point for opp
 
-		//get_opponent_front_centroid(ox, oy);
-		//get_opponent_back_centroid(obx, oby);
+		cout << "\rFront centroid x: " << fx << " y: " << fy << "  Back centroid x: " << bx << " y: " << by << " Opponent front centroid x : " << ofx << " y : " << ofy << "  Opponent back centroid x : " << obx << " y : " << oby << flush;
 
-		//cout << "\rFront centroid x: " << fx << " y: " << fy << "  Back centroid x: " << bx << " y: " << by << flush;
-
-		draw_point_rgb(rgb1, fx, fy, 0, 0, 255); //green centroin point
-		draw_point_rgb(rgb1, bx, by, 0, 0, 255); //red centroid point
 	
-		draw_point_rgb(rgb1, ox, oy, 0, 0, 255); //green centroin point for opp
-		draw_point_rgb(rgb1, obx, oby, 0, 0, 255); //red centroid point for opp
-	
-	
-		
+		//GET OBSTACLES
+		int n = get_obstacles(obs_x, obs_y, N_OBS);
+		for (int i = 0; i < n; i++) {
+			draw_point_rgb(rgb1, obs_x[i], obs_y[i], 0, 255, 0);
+		}
 
+		//AVOID COLLISIONs
 		bool avoid = check_collision(fx, fy, bx, by, sim_robot_length*0.5, sim_robot_width*0.5, obs_x, obs_y, obs_r, N_OBS);
 
 		DriveCmd cmd = decide_cmd(fx, fy, bx, by, ofx, ofy, obx, oby, theta); //add ox, oy, obx, oby for opponent but 0 for now
 
-		send_cmd(cmd);
+		//send_cmd(cmd);
 
 		
 		view_rgb_image(rgb1);
@@ -806,13 +812,8 @@ int filter_colors(image& a, image& b, HSVFilter* filters, int num_filters) {
 	return 0;
 }
 
-static void build_black_mask(image& blackmask) {
-	copy(rgb0, blackmask);
-	threshold(blackmask, blackmask, BLACK_THRESH);
-	invert(blackmask, blackmask);
-}
 
-static bool has_black_outline(int lbl, image& labelImg, image& blackmask) {
+/*static bool has_black_outline(int lbl, image& labelImg, image& blackmask) {
 	int W = labelImg.width, H = labelImg.height;
 
 	image region;
@@ -855,7 +856,7 @@ static bool has_black_outline(int lbl, image& labelImg, image& blackmask) {
 		return ringCount > 0 && (double)blackCount / ringCount >= OUTLINE_FRACTION;
 
 	}
-}
+}*/
 
 int object_area(image& label, int nlabel) {
 	i2byte* pl;
@@ -884,14 +885,6 @@ int get_front_centroid(double &front_x, double &front_y) {
 	filter_colors(rgb1, rgb0, filter, 1); // GREEN
 	int nlabels = label_objects(tvalue);
 	int area;
-	/*
-	image blackmask;
-	blackmask.type = GREY_IMAGE;
-	blackmask.width = IMAGE_WIDTH;
-	blackmask.height = IMAGE_HEIGHT;
-	allocate_image(blackmask);
-	build_black_mask(blackmask);
-	*/
 	for (int i = 1; i <= nlabels; i++) {
 		area = object_area(label, i);
 		if (area >= 700 && area <= 5000) { //to modify, make more robust by lower upper bound
@@ -899,72 +892,102 @@ int get_front_centroid(double &front_x, double &front_y) {
 			break;
 		}
 	}
-	//free_image(blackmask);
 	return 0;
 }
 
-int get_back_centroid(double& back_x, double& back_y) {
-	HSVFilter filter[] = { { 10.0, 0.65, 0.5, 8, 0.3, 0.35 },
-		{350, 0.65, 0.5, 10, 0.2, 0.35} };
-	filter_colors(rgb1, rgb0, filter, 1);  // RED
-	int nlabels = label_objects(tvalue);
+int get_back_centroid(double& front_x, double& front_y, double& back_x, double& back_y) {
+	HSVFilter filter[] = { 
+		{ 10.0, 0.65, 0.625, 8, 0.35, 0.375 }, //10, 0.65, 0.5, 8, 0.3, 0.35
+		{350, 0.65, 0.625, 10, 0.35, 0.375} //350, 0.65, 0.5, 10, 0.2, 0.35
+	};
+	filter_colors(rgb1, rgb0, filter, 2);  // RED
+	/*int nlabels = label_objects(tvalue);
 	int area;
-	/*
-	image blackmask;
-	blackmask.type = GREY_IMAGE;
-	blackmask.width = IMAGE_WIDTH;
-	blackmask.height = IMAGE_HEIGHT;
-	allocate_image(blackmask);
-	build_black_mask(blackmask);
-	*/
 	for (int i = 1; i <= nlabels; i++) {
 		area = object_area(label, i);
-		if (area >= 700 && area <= 5000) {
+		if (area >= 700 && area <= 5000) { //to modify, make more robust by lower upper bound
 			centroid(a, label, i, back_x, back_y);
 			break;
 		}
 	}
-	//free_image(blackmask);
+	*/
+	int nlabels = label_objects(tvalue);
+	double best_d2 = 1e9;
+	bool found = false;
+	double cx, cy;
+
+	for (int L = 1; L <= nlabels; L++) {
+		int area = object_area(label, L);
+		if (area < 500 || area > 8000) { //to modify, make more robust by lower upper bound
+			continue;
+		}
+
+		centroid(a, label, L, cx, cy);
+		double d2 = (cx - front_x)*(cx - front_x) + (cy - front_y)*(cy - front_y);
+		if (d2 < best_d2) {
+			best_d2 = d2;
+			back_x = cx;
+			back_y = cy;
+			found = true;
+		}
+	}
 	return 0;
 }
 
 int get_opponent_front_centroid(double &front_x, double &front_y)
 {
-	//filter_color(rgb1, rgb0, 30.0, 0.6, 0.8, 10.0, 0.2, 0.2); //ORANGE
+	HSVFilter filter[] = { 
+		{ 25.0, 0.6, 0.75, 10.0, 0.2, 0.25 } ,
+		{ 12.5, 0.5, 0.7, 7.5, 0.2, 0.3}
+	
+	}; //ORANGE
+	filter_colors(rgb1, rgb0, filter, 2); 
 	int nlabels = label_objects(tvalue);
-
-	image blackmask = { GREY_IMAGE, IMAGE_WIDTH, IMAGE_HEIGHT, nullptr };
-	allocate_image(blackmask);
-	build_black_mask(blackmask);
+	int area;
 	for (int i = 1; i <= nlabels; i++) {
-		int area = object_area(label, i);
-		if (area < 100 || area >4000) continue;
-		if (!has_black_outline(i, label, blackmask)) continue;
-		centroid(a, label, i, front_x, front_y);
-		free_image(blackmask);
-		return 0;
+		area = object_area(label, i);
+		if (area >= 700 && area <= 5000) { //to modify, make more robust by lower upper bound
+			centroid(a, label, i, front_x, front_y);
+			break;
+		}
 	}
-	free_image(blackmask);
-	return 1;
+	return 0;
 }
 
-int get_opponent_back_centroid(double &back_x, double &back_y)
+int get_opponent_back_centroid(double &front_x, double &front_y, double &back_x, double &back_y)
 {
-	//filter_color(rgb1, rgb0, 210.0, 0.6, 0.7, 10.0, 0.2, 0.2); //BLUE
-	int nlabels = label_objects(tvalue);
-
-	image blackmask = { GREY_IMAGE, IMAGE_WIDTH, IMAGE_HEIGHT, nullptr };
-	allocate_image(blackmask);
-	build_black_mask(blackmask);
+	HSVFilter filter[] = { 220.0, 0.6, 0.625, 30.0, 0.2, 0.375 }; //BLUE
+	filter_colors(rgb1, rgb0, filter, 1);
+	/*int nlabels = label_objects(tvalue);
+	int area;
 	for (int i = 1; i <= nlabels; i++) {
-		int area = object_area(label, i);
-		if (area < 100 || area >4000) continue;
-		if (!has_black_outline(i, label, blackmask)) continue;
-		centroid(a, label, i, back_x, back_y);
-		free_image(blackmask);
-		return 0;
+		area = object_area(label, i);
+		if (area >= 700 && area <= 5000) { //to modify, make more robust by lower upper bound
+			centroid(a, label, i, back_x, back_y);
+			break;
+		}
+	}*/
+	int nlabels = label_objects(tvalue);
+	double best_d2 = 1e9;
+	bool found = false;
+	double cx, cy;
+
+	for (int L = 1; L <= nlabels; L++) {
+		int area = object_area(label, L);
+		if (area < 500 || area > 8000) { //to modify, make more robust by lower upper bound
+			continue;
+		}
+
+		centroid(a, label, L, cx, cy);
+		double d2 = (cx - front_x) * (cx - front_x) + (cy - front_y) * (cy - front_y);
+		if (d2 < best_d2) {
+			best_d2 = d2;
+			back_x = cx;
+			back_y = cy;
+			found = true;
+		}
 	}
-	free_image(blackmask);
+	return 0;
 }
 
 bool check_collision(double front_x, double front_y, double back_x, double back_y, double half_L, double half_W, const double* obstacle_x, const double* obstacle_y, const double* obstacle_r, int N_OBS) {
@@ -1094,16 +1117,28 @@ void sobel_edge_detection(const image& input, image& output) {
 
 int get_obstacles(double* x_vals, double* y_vals, int n_obs) {
 	HSVFilter filters[] = {
-		{ 153.0, 0.6, 0.7, 5.0, 0.1, 0.1 },//green
-		{ 5.0, 0.65, 0.89, 2.0, 0.05, 0.05 },//red
+		{ 153.0, 0.5, 0.35, 20.0, 0.2, 0.2 },//green
+		{ 10.0, 0.65, 0.5, 8.0, 0.3, 0.35 },//red 1
+		{350.0, 0.65, 0.5, 10.0, 0.2, 0.35 },//red 2
+		{ 25.0, 0.6, 0.75, 10.0, 0.2, 0.25 },//orange
 		{ 30.0, 0.5, 1.0, 2.0, 0.05, 0.1 },//yellow
-		{ 203.0, 0.8, 0.89, 5.0, 0.05, 0.05 },//blue
-		{ 220.0, 0.07, 0.2, 100.0, 0.05, 0.05 }//black
+		{ 220.0, 0.6, 0.625, 30.0, 0.2, 0.375 },//blue
+		//{ 220.0, 0.07, 0.2, 100.0, 0.05, 0.05 }//black
+		{ 180.0, 0.5, 0.075, 180.0, 0.5, 0.075 }//black
 	};
-	filter_colors(rgb1, rgb0, filters, 5);
+	filter_colors(rgb1, rgb0, filters, 7);
+
+	view_rgb_image(rgb0, 1); //debugging
+	Sleep(500);
 
 	int nlabels = label_objects(150);
 	int area;
+
+	cout << "amount of obstacles " << nlabels << endl; //more debugging
+	for (int L = 1; L <= nlabels; ++L) {
+		int A = object_area(label, L);
+		cout << "obstacle: " << L << " area: " << A << endl;
+	}
 
 	int top_labels[50];
 	int top_areas[50];
