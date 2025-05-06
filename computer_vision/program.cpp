@@ -291,8 +291,8 @@ int run_sim() {
 
 	tc0 = high_resolution_time();
 	double dpw = 500;
-	opp_x = 150;
-	opp_y = 375;
+	opp_x = 135;
+	opp_y = 270;
 	//-------------------------------------------------------------------------------//
 	front_x, front_y, back_x, back_y = 0.0;
 	double ic = 200.0, jc = 300.0;
@@ -366,11 +366,38 @@ int run_sim() {
 			double ody = - oy + front_y;
 			double dist2 = odx * odx + ody * ody;
 
-			if (dist2 < 7000) { //radius squared
-				double scale = 1 / dist2;
-				repulse_x -= scale * odx;
-				repulse_y -= scale * ody;
+			if (dist2 < 10000) { //radius squared
+			double scale = 8000 / dist2;
+			repulse_x += scale * odx;
+			repulse_y += scale * ody;
 			}
+		}
+
+		double dist_left = front_x - 0.0;
+		if (dist_left > 1.0) {
+			double scale = 10000.0 / (dist_left * dist_left);
+			repulse_x += scale; // Push right (positive x)
+		}
+
+		// Repulsion from right wall (x = 640)
+		double dist_right = 640.0 - front_x;
+		if (dist_right > 1.0) {
+			double scale = 10000.0 / (dist_right * dist_right);
+			repulse_x -= scale; // Push left (negative x)
+		}
+
+		// Repulsion from top wall (y = 0)
+		double dist_top = front_y - 0.0;
+		if (dist_top > 1.0) {
+			double scale = 10000.0 / (dist_top * dist_top);
+			repulse_y += scale; // Push down (positive y)
+		}
+
+		// Repulsion from bottom wall (y = 480)
+		double dist_bottom = 480.0 - front_y;
+		if (dist_bottom > 1.0) {
+			double scale = 10000.0 / (dist_bottom * dist_bottom);
+			repulse_y -= scale; // Push up (negative y)
 		}
 
 		double goal_theta = atan2(dy + repulse_y, dx + repulse_x);
@@ -388,13 +415,14 @@ int run_sim() {
 			<< " Theta: " << theta
 			<< flush;
 		*/
+		/*
 		if (check_collision(front_x, front_y, back_x, back_y, sim_robot_length, sim_robot_width, x_obs, y_obs, r_obs, N_obs)) {
 			cout << "\rCollision detected!" << flush;
 		}
 		else {
 			cout << "\rNo Collision detected!" << flush;
 		}
-
+		*/
 		view_rgb_image(rgb0, v_mode);
 
 		if (KEY('X')) break;
@@ -1164,6 +1192,7 @@ int get_obstacles_sim(double* x_vals, double* y_vals, int n_obs) {
 		{ 200.0, 0.6, 0.6, 10.0, 0.30, 0.30 },//blue
 		{ 180.0, 0.10, 0.15, 180.0, 0.1, 0.15 }//black
 	};
+	filter_colors(rgb1, rgb0, filters, 5);
 
 	int nlabels = label_objects(150);
 	int area;
