@@ -151,7 +151,7 @@ int run_test() {
 
 	int nlabels;
 	double ic, jc;
-	const int N_OBS = 2;
+	const int N_OBS = 3;
 	double x_obs[N_OBS], y_obs[N_OBS], r_obs[N_OBS];
 		HSVFilter filters[] = {
 		{153.0, 0.6, 0.7, 5.0, 0.1, 0.1},
@@ -161,7 +161,7 @@ int run_test() {
 		{220.0, 0.07, 0.2, 120.0, 0.1, 0.1}
 	};
 
-	load_rgb_image("output.bmp", rgb1);
+	load_rgb_image("screenshot2.bmp", rgb1);
 	view_rgb_image(rgb1);
 	cout << "\ntest image rgb";
 	pause();
@@ -177,29 +177,12 @@ int run_test() {
 	cout << "\nback centroid";
 	pause();
 	*/
-	get_front_centroid_sim(ic, jc);
-	draw_point_rgb(rgb1, (int)ic, (int)jc, 0, 0, 255);
-	view_rgb_image(rgb1);
-	pause();
-	HSVFilter filter[] = { 153.0, 0.5, 0.45, 20.0, 0.3, 0.30 };
-	filter_colors(rgb1, rgb0, filter, 1);
-	view_rgb_image(rgb0);
-	cout << "\ngreen filter";
-	pause();
-	nlabels = label_objects(140);
-	copy(a, rgb0);
-	view_rgb_image(rgb0);
-	cout << "\nlabeling";
-	pause();
-	for (int i = 1; i <= nlabels; i++) {
-		centroid(a, label, i, ic, jc);
-		cout << "\ncentroid: ic = " << ic << " jc = " << jc;
-		int area = object_area(label, i);
-		cout << "\nArea: " << area;
-		draw_point_rgb(rgb0, (int)ic, (int)jc, 0, 0, 255);
-		view_rgb_image(rgb0);
-		pause();
+	
+	get_obstacles(x_obs, y_obs, N_OBS);
+	for (int i = 0; i < N_OBS; i++) {
+		//draw_point_rgb(rgb1, (int)x_obs[i], (int)y_obs[i], 255, 0, 0);
 	}
+	view_rgb_image(rgb1);
 	//sobel edge detection
 	///*
 	/*
@@ -441,21 +424,16 @@ int run_vision() {
 	int height = 480;
 
 	activate_camera(cam_number, IMAGE_HEIGHT, IMAGE_WIDTH);	// activate camera
-
-	/*
-	acquire_image(rgb0, cam_number); // acquire an image from a video source (RGB format)
+	acquire_image(rgb0, cam_number);
 	cout << "take a screenshot";
 	while (1) {
 		acquire_image(rgb0, cam_number);
 		view_rgb_image(rgb0);
 		if (KEY('X')) {
-			save_rgb_image("screenshot.bmp", rgb0);
+			save_rgb_image("screenshot2.bmp", rgb0);
 			break;
 		}
 	}
-	*/
-	acquire_image(rgb0, cam_number);
-
 	
 	//label objects in the image
 	label_objects(tvalue);
@@ -463,12 +441,15 @@ int run_vision() {
 	cout << "\nlabel number: " << nlabel;
 	// tracking
 	centroid(a, label, nlabel, ic, jc);
-
+	
 	double fx = 0, fy = 0, bx = 0, by = 0;
 	double ofx = 0, ofy = 0, obx = 0, oby = 0; //used for example 630, 470, 600, 440
 	double ox = 0, oy = 0; //center of opponent example: 260, 500
 	double obs_x[N_OBS] = { 0.0 }, obs_y[N_OBS] = { 0.0 }, obs_r[N_OBS] = { 0.0 };
 	cout << "\n";
+	
+	
+
 	while (1) {
 		acquire_image(rgb1, cam_number);
 
@@ -1116,6 +1097,7 @@ void sobel_edge_detection(const image& input, image& output) {
 }
 
 int get_obstacles(double* x_vals, double* y_vals, int n_obs) {
+	
 	HSVFilter filters[] = {
 		{ 153.0, 0.5, 0.35, 20.0, 0.2, 0.2 },//green
 		{ 10.0, 0.65, 0.625, 8, 0.35, 0.375 },//red1
@@ -1132,26 +1114,21 @@ int get_obstacles(double* x_vals, double* y_vals, int n_obs) {
 
 	int nlabels = label_objects(150);
 	int area;
-	const int min_area = 700; // Minimum area for an obstacle to be considered
+	//const int min_area = 700; // Minimum area for an obstacle to be considered
 
-	/*cout << "amount of obstacles " << nlabels << endl; //more debugging
-	for (int L = 1; L <= nlabels; ++L) {
+	/*for (int L = 1; L <= nlabels; ++L) {
 		int A = object_area(label, L);
-		cout << "obstacle: " << L << " area: " << A << endl;
+		if (A < threshold_area_size) {
+			continue; // Skip small areas
+		}
 	}*/
 
-	int top_labels[50];
-	int top_areas[50];
-
-	for (int i = 1; i < n_obs; i++) {
-		top_labels[i] = -1;
-		top_areas[i] = -1;
-	}
+	int top_labels[50] = { 0 };
+	int top_areas[50] = { 0 };
 
 	for (int i = 0; i < nlabels; i++) {
 		area = object_area(label, i+1);
-		if (area < min_area) continue; // Skip small areas
-		cout << "kept obstacle:" << i + 1 << " area: " << area << endl;
+		cout << "kept obstacle:" << i+1 << " area: " << area << endl;
 		for (int j = 0; j < n_obs; j++) {
 			if (area > top_areas[j]) {
 				// Shift down smaller values
@@ -1175,12 +1152,14 @@ int get_obstacles(double* x_vals, double* y_vals, int n_obs) {
 		double ic, jc;
 		centroid(a, label, top_labels[i], ic, jc);
 		draw_point_rgb(rgb1, int(ic), int(jc), 0, 255, 0);
+		cout << "Obstacle:" << top_labels[i] << " area: " << top_areas[i] << endl;
 		x_vals[i] = ic;
 		y_vals[i] = jc;
 	}
 
 	return 0;
 }
+
 
 double normalize_angle(double angle) {
 	while (angle > 3.14159) angle -= 2 * 3.14159;
