@@ -66,6 +66,8 @@ int get_obstacles(double* x_vals, double* y_vals, int n_obs);
 double normalize_angle(double angle);
 int get_front_centroid_sim(double& front_x, double& front_y);
 int get_back_centroid_sim(double& back_x, double& back_y);
+int get_obstacles_sim(double* x_vals, double* y_vals, int n_obs);
+
 
 // declare some global image structures (globals are bad, but easy)
 image a,b,rgb1;
@@ -161,7 +163,7 @@ int run_test() {
 		{220.0, 0.07, 0.2, 120.0, 0.1, 0.1}
 	};
 
-	load_rgb_image("screenshot2.bmp", rgb1);
+	load_rgb_image("output2.bmp", rgb1);
 	view_rgb_image(rgb1);
 	cout << "\ntest image rgb";
 	pause();
@@ -178,10 +180,7 @@ int run_test() {
 	pause();
 	*/
 	
-	get_obstacles(x_obs, y_obs, N_OBS);
-	for (int i = 0; i < N_OBS; i++) {
-		//draw_point_rgb(rgb1, (int)x_obs[i], (int)y_obs[i], 255, 0, 0);
-	}
+	get_obstacles_sim(x_obs, y_obs, 2);
 	view_rgb_image(rgb1);
 	//sobel edge detection
 	///*
@@ -302,7 +301,7 @@ int run_sim() {
 
 	get_front_centroid_sim(front_x, front_y);
 	get_back_centroid_sim(back_x, back_y);
-	get_obstacles(x_obs, y_obs, N_obs);
+	get_obstacles_sim(x_obs, y_obs, N_obs);
 
 	while (1) {
 
@@ -363,14 +362,14 @@ int run_sim() {
 		double repulse_x = 0, repulse_y = 0;
 		for (int i = 0; i < N_obs; ++i) {
 			double ox = x_obs[i], oy = y_obs[i];
-			double odx = ox - front_x;
-			double ody = oy - front_y;
+			double odx = - ox + front_x;
+			double ody = - oy + front_y;
 			double dist2 = odx * odx + ody * ody;
 
-			if (dist2 < 3000) { //radius squared
-				double scale = 6.0 / dist2;
-				repulse_x += scale * odx;
-				repulse_y += scale * ody;
+			if (dist2 < 7000) { //radius squared
+				double scale = 1 / dist2;
+				repulse_x -= scale * odx;
+				repulse_y -= scale * ody;
 			}
 		}
 
@@ -395,6 +394,7 @@ int run_sim() {
 		else {
 			cout << "\rNo Collision detected!" << flush;
 		}
+
 		view_rgb_image(rgb0, v_mode);
 
 		if (KEY('X')) break;
@@ -1110,25 +1110,17 @@ int get_obstacles(double* x_vals, double* y_vals, int n_obs) {
 		{ 180.0, 0.5, 0.075, 180.0, 0.5, 0.075 }//black
 	};
 	filter_colors(rgb1, rgb0, filters, 8);
-
+	view_rgb_image(rgb0);
+	pause();
 
 	int nlabels = label_objects(150);
 	int area;
-	//const int min_area = 700; // Minimum area for an obstacle to be considered
-
-	/*for (int L = 1; L <= nlabels; ++L) {
-		int A = object_area(label, L);
-		if (A < threshold_area_size) {
-			continue; // Skip small areas
-		}
-	}*/
 
 	int top_labels[50] = { 0 };
 	int top_areas[50] = { 0 };
 
 	for (int i = 0; i < nlabels; i++) {
 		area = object_area(label, i+1);
-		cout << "kept obstacle:" << i+1 << " area: " << area << endl;
 		for (int j = 0; j < n_obs; j++) {
 			if (area > top_areas[j]) {
 				// Shift down smaller values
@@ -1152,7 +1144,54 @@ int get_obstacles(double* x_vals, double* y_vals, int n_obs) {
 		double ic, jc;
 		centroid(a, label, top_labels[i], ic, jc);
 		draw_point_rgb(rgb1, int(ic), int(jc), 0, 255, 0);
-		cout << "Obstacle:" << top_labels[i] << " area: " << top_areas[i] << endl;
+		x_vals[i] = ic;
+		y_vals[i] = jc;
+	}
+
+	return 0;
+}
+
+int get_obstacles_sim(double* x_vals, double* y_vals, int n_obs) {
+
+	HSVFilter filters[] = {
+		{ 150.0, 0.5, 0.55, 20.0, 0.2, 0.25 },//green
+		{ 10.0, 0.65, 0.625, 8, 0.35, 0.375 },//red
+		{ 30, 0.55, 0.65, 10, 0.35, 0.35},//orange
+		{ 200.0, 0.6, 0.6, 10.0, 0.30, 0.30 },//blue
+		{ 180.0, 0.10, 0.15, 180.0, 0.1, 0.15 }//black
+	};
+
+	int nlabels = label_objects(150);
+	int area;
+
+	int top_labels[50] = { 0 };
+	int top_areas[50] = { 0 };
+
+	for (int i = 0; i < nlabels; i++) {
+		area = object_area(label, i + 1);
+		for (int j = 0; j < n_obs; j++) {
+			if (area > top_areas[j]) {
+				// Shift down smaller values
+				for (int k = n_obs - 1; k > j; k--) {
+					top_areas[k] = top_areas[k - 1];
+					top_labels[k] = top_labels[k - 1];
+				}
+				top_areas[j] = area;
+				top_labels[j] = i + 1;
+				break;
+			}
+		}
+	}
+
+	for (int i = 0; i < n_obs; i++) {
+		if (top_labels[i] == -1) {
+			x_vals[i] = -1;
+			y_vals[i] = -1;
+			continue;
+		}
+		double ic, jc;
+		centroid(a, label, top_labels[i], ic, jc);
+		draw_point_rgb(rgb1, int(ic), int(jc), 0, 255, 0);
 		x_vals[i] = ic;
 		y_vals[i] = jc;
 	}
