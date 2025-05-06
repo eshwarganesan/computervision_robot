@@ -422,10 +422,10 @@ int run_vision() {
 	int cam_number = 0;			// Should be 0 for external camera
 	int width = 640;
 	int height = 480;
-
+	int const N_OBS = 3;
 	activate_camera(cam_number, IMAGE_HEIGHT, IMAGE_WIDTH);	// activate camera
 	acquire_image(rgb0, cam_number);
-	cout << "take a screenshot";
+	/*cout << "take a screenshot";
 	while (1) {
 		acquire_image(rgb0, cam_number);
 		view_rgb_image(rgb0);
@@ -433,7 +433,7 @@ int run_vision() {
 			save_rgb_image("screenshot2.bmp", rgb0);
 			break;
 		}
-	}
+	}*/
 	
 	//label objects in the image
 	label_objects(tvalue);
@@ -448,7 +448,10 @@ int run_vision() {
 	double obs_x[N_OBS] = { 0.0 }, obs_y[N_OBS] = { 0.0 }, obs_r[N_OBS] = { 0.0 };
 	cout << "\n";
 	
-	
+	get_obstacles(obs_x, obs_y, N_OBS);
+	for (int i = 0; i < N_OBS; i++) {
+		draw_point_rgb(rgb1, obs_x[i], obs_y[i], 0, 255, 0);
+	}
 
 	while (1) {
 		acquire_image(rgb1, cam_number);
@@ -476,8 +479,9 @@ int run_vision() {
 
 	
 		//GET OBSTACLES
-		int n = get_obstacles(obs_x, obs_y, N_OBS);
-		for (int i = 0; i < n; i++) {
+		//get_obstacles(obs_x, obs_y, N_OBS);
+		for (int i = 0; i < N_OBS; i++) {
+			track_object(nlabel, obs_x[i], obs_y[i]);
 			draw_point_rgb(rgb1, obs_x[i], obs_y[i], 0, 255, 0);
 		}
 
