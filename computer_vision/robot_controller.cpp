@@ -51,10 +51,10 @@ static double normalize_angle(double angle) {
 	while (angle < -3.14159) angle += 2 * 3.14159;
 	return angle;
 }
-DriveCmd decide_cmd(double fx, double fy, double bx, double by, double ofx, double ofy, double obx, double oby, double theta, const double obs_x[], const double obs_y[], int N_obs) {
+DriveCmd decide_cmd(double fx, double fy, double bx, double by, double ofx, double ofy, double obx, double oby, double theta, const double obs_x[], const double obs_y[], const double obs_r[], int N_obs) {
 	
 	//get direction to opponent
-
+	
 	double cx = (fx + bx) / 2.0;
 	double cy = (fy + by) / 2.0;
 	double ox = (ofx + obx) / 2.0;
@@ -67,7 +67,7 @@ DriveCmd decide_cmd(double fx, double fy, double bx, double by, double ofx, doub
 	for (int i = 0; i < N_obs; ++i) {
 		double odx = obs_x[i] - cx;
 		double ody = obs_y[i] - cy;
-		double dist2 = odx * odx + ody * ody;
+		double dist2 = (odx * odx + ody * ody) - obs_r[i];
 
 		if (dist2 < 15000) { //radius squared
 			double scale = 10000 / dist2;
@@ -95,7 +95,7 @@ DriveCmd decide_cmd(double fx, double fy, double bx, double by, double ofx, doub
 		double scale = 10000.0 / (dist_bottom * dist_bottom);
 		repulse_y -= scale; // push up negative y
 	}
-
+	
 
 	double goal_theta = atan2(dy + repulse_y, dx + repulse_x);
 	double angle_diff = normalize_angle(goal_theta - theta);

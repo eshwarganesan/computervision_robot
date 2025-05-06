@@ -62,7 +62,7 @@ int get_opponent_back_centroid(double& front_x, double& front_y, double& back_x,
 bool check_collision(double front_x, double front_y, double back_x, double back_y, double L, double W, const double* obstacle_x, const double* obstacle_y, const double* obstacle_r, int N_OBS);
 bool has_line_of_sight(double x1, double y1, double x2, double y2);
 void sobel_edge_detection(const image& input, image& output);
-int get_obstacles(double* x_vals, double* y_vals, int n_obs);
+int get_obstacles(double* x_vals, double* y_vals, double* r_vals, int n_obs);
 double normalize_angle(double angle);
 int get_front_centroid_sim(double& front_x, double& front_y);
 int get_back_centroid_sim(double& back_x, double& back_y);
@@ -303,7 +303,7 @@ acquire_image_sim(rgb1);
 
 get_front_centroid_sim(front_x, front_y);
 get_back_centroid_sim(back_x, back_y);
-get_obstacles(x_obs, y_obs, N_obs);
+get_obstacles(x_obs, y_obs, obs_r, N_obs);
 
 while (1) {
 
@@ -492,7 +492,7 @@ int run_vision() {
 	double obs_x[N_OBS] = { 0.0 }, obs_y[N_OBS] = { 0.0 }, obs_r[N_OBS] = { 0.0 };
 	cout << "\n";
 	
-	get_obstacles(obs_x, obs_y, N_OBS);
+	get_obstacles(obs_x, obs_y, obs_r, N_OBS);
 	for (int i = 0; i < N_OBS; i++) {
 		draw_point_rgb(rgb1, obs_x[i], obs_y[i], 0, 255, 0);
 	}
@@ -523,7 +523,7 @@ int run_vision() {
 
 	
 		//GET OBSTACLES
-		get_obstacles(obs_x, obs_y, N_OBS);
+		get_obstacles(obs_x, obs_y, obs_r, N_OBS);
 		for (int i = 0; i < N_OBS; i++) {
 			//track_object(nlabel, obs_x[i], obs_y[i]);
 			draw_point_rgb(rgb1, obs_x[i], obs_y[i], 0, 255, 0);
@@ -534,7 +534,7 @@ int run_vision() {
 		//AVOID COLLISIONs
 		bool avoid = check_collision(fx, fy, bx, by, sim_robot_length*0.5, sim_robot_width*0.5, obs_x, obs_y, obs_r, N_OBS);
 
-		DriveCmd cmd = decide_cmd(fx, fy, bx, by, ofx, ofy, obx, oby, theta, obs_x, obs_y, N_OBS); //add ox, oy, obx, oby for opponent but 0 for now
+		DriveCmd cmd = decide_cmd(fx, fy, bx, by, ofx, ofy, obx, oby, theta, obs_x, obs_y, obs_r, N_OBS); 
 
 		send_cmd(cmd);
 
@@ -1147,7 +1147,7 @@ void sobel_edge_detection(const image& input, image& output) {
 	}
 }
 
-int get_obstacles(double* x_vals, double* y_vals, int n_obs) {
+int get_obstacles(double* x_vals, double* y_vals, double* r_vals, int n_obs) {
 	
 	HSVFilter filters[] = {
 		{ 153.0, 0.5, 0.35, 20.0, 0.2, 0.2 },//green
@@ -1186,17 +1186,22 @@ int get_obstacles(double* x_vals, double* y_vals, int n_obs) {
 		}
 	}
 
+	constexpr double safety_margin = 20.0; // pixels, adjust as needed
+
 	for (int i = 0; i < n_obs; i++) {
-		if (top_labels[i] == -1) {
+		if (top_labels[i] == 0) { // used to be -1
 			x_vals[i] = -1; 
 			y_vals[i] = -1;
+			r_vals[i] = -1;
 			continue;
 		}
 		double ic, jc;
 		centroid(a, label, top_labels[i], ic, jc);
+		double r = std::sqrt(top_areas[i] / 3.14159) + safety_margin;
 		draw_point_rgb(rgb1, int(ic), int(jc), 0, 255, 0);
 		x_vals[i] = ic;
 		y_vals[i] = jc;
+		r_vals[i] = r;
 	}
 
 	return 0;
