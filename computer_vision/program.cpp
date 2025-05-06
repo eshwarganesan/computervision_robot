@@ -163,8 +163,8 @@ int run_test() {
 		{220.0, 0.07, 0.2, 120.0, 0.1, 0.1}
 	};
 
-	load_rgb_image("output2.bmp", rgb1);
-	view_rgb_image(rgb1);
+	load_rgb_image("output.bmp", rgb0);
+	view_rgb_image(rgb0);
 	cout << "\ntest image rgb";
 	pause();
 	/*
@@ -180,7 +180,9 @@ int run_test() {
 	pause();
 	*/
 	
-	get_obstacles_sim(x_obs, y_obs, 2);
+	//get_obstacles_sim(x_obs, y_obs, 2);
+	label_objects(tvalue);
+	copy(a, rgb1);
 	view_rgb_image(rgb1);
 	//sobel edge detection
 	///*
@@ -291,11 +293,14 @@ int run_sim() {
 
 	tc0 = high_resolution_time();
 	double dpw = 500;
-	opp_x = 135;
-	opp_y = 270;
+	opp_x = 155;
+	opp_y = 330;
 	//-------------------------------------------------------------------------------//
+	//wait_for_player();
+
 	front_x, front_y, back_x, back_y = 0.0;
 	double ic = 200.0, jc = 300.0;
+	double xg, yg; //gripper position
 	// initial simulation setup
 	acquire_image_sim(rgb1);
 
@@ -348,6 +353,7 @@ int run_sim() {
 		track_object(nlabel, back_x, back_y);
 		theta = get_orientation(front_x, front_y, back_x, back_y);
 		for (int i = 0; i < N_obs; i++) {
+			//track_object(nlabel, x_obs[i], y_obs[i]); slows down performance, however, could be used as solution for dynamic obstacles
 			draw_point_rgb(rgb0, (int)x_obs[i], (int)y_obs[i], 255, 0, 0);
 		}
 		draw_point_rgb(rgb0, (int)opp_x, (int)opp_y, 0, 255, 0);
@@ -366,8 +372,8 @@ int run_sim() {
 			double ody = - oy + front_y;
 			double dist2 = odx * odx + ody * ody;
 
-			if (dist2 < 10000) { //radius squared
-			double scale = 8000 / dist2;
+			if (dist2 < 15000) { //radius squared
+			double scale = 10000 / dist2;
 			repulse_x += scale * odx;
 			repulse_y += scale * ody;
 			}
@@ -403,9 +409,18 @@ int run_sim() {
 		double goal_theta = atan2(dy + repulse_y, dx + repulse_x);
 		double angle_diff = normalize_angle(goal_theta - theta);
 
-		if (fabs(angle_diff) < 0.2) { pw_l_o = 1500 - dpw; pw_r_o = 1500 + dpw; }//move straight
-		else if (angle_diff > 0) { pw_l_o = 1500 + dpw; pw_r_o = 1500 + dpw; }//rotate left
-		else { pw_l_o = 1500 - dpw; pw_r_o = 1500 - dpw; }//rotate right
+		if (fabs(angle_diff) < 0.2) { 
+			pw_l_o = 1500 - dpw;
+			pw_r_o = 1500 + dpw; 
+		}//move straight
+		else if (angle_diff > 0) { 
+			pw_l_o = 1500 + dpw; 
+			pw_r_o = 1500 + dpw; 
+		}//rotate left
+		else { 
+			pw_l_o = 1500 - dpw; 
+			pw_r_o = 1500 - dpw; 
+		}//rotate right
 
 		/*
 		cout << "\rFront x: " << front_x
@@ -423,6 +438,17 @@ int run_sim() {
 			cout << "\rNo Collision detected!" << flush;
 		}
 		*/
+		//check line of sight
+
+		double angle_to_opp = atan2(dy, dx);
+		double normalized_angle_opp = normalize_angle(angle_to_opp);
+		if (normalized_angle_opp < 0.2) {
+			cout << "\rFacing opponent   " << flush;
+		}
+		else {
+			cout << "\rNot Facing opponent" << flush;
+		}
+		//*/
 		view_rgb_image(rgb0, v_mode);
 
 		if (KEY('X')) break;
@@ -433,7 +459,7 @@ int run_sim() {
 		// -- it seems laptops tend to go into low CPU mode
 		// when Sleep is called, which slows down the simulation
 		// more than the requested sleep time
-		Sleep(5); // 100 fps max
+		//Sleep(5); // 100 fps max
 	}
 
 	return 0;
@@ -1071,8 +1097,9 @@ bool has_line_of_sight(double x1, double y1, double x2, double y2) {
 	ibyte* pdata = (ibyte*)label.pdata;
 	int width = label.width;
 	int height = label.height;
+	const int margin_steps = 50;
 
-	for (int i = 0; i <= steps; ++i) {
+	for (int i = 0; i <= steps -  margin_steps; ++i) {
 		int xi = static_cast<int>(x1 + i * dx + 0.5);
 		int yi = static_cast<int>(y1 + i * dy + 0.5);
 
