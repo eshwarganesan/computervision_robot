@@ -66,6 +66,8 @@ int get_obstacles(double* x_vals, double* y_vals, int n_obs);
 double normalize_angle(double angle);
 int get_front_centroid_sim(double& front_x, double& front_y);
 int get_back_centroid_sim(double& back_x, double& back_y);
+int get_obstacles_sim(double* x_vals, double* y_vals, int n_obs);
+
 
 // declare some global image structures (globals are bad, but easy)
 image a,b,rgb1;
@@ -161,8 +163,8 @@ int run_test() {
 		{220.0, 0.07, 0.2, 120.0, 0.1, 0.1}
 	};
 
-	load_rgb_image("screenshot2.bmp", rgb1);
-	view_rgb_image(rgb1);
+	load_rgb_image("output.bmp", rgb0);
+	view_rgb_image(rgb0);
 	cout << "\ntest image rgb";
 	pause();
 	/*
@@ -178,10 +180,9 @@ int run_test() {
 	pause();
 	*/
 	
-	get_obstacles(x_obs, y_obs, N_OBS);
-	for (int i = 0; i < N_OBS; i++) {
-		//draw_point_rgb(rgb1, (int)x_obs[i], (int)y_obs[i], 255, 0, 0);
-	}
+	//get_obstacles_sim(x_obs, y_obs, 2);
+	label_objects(tvalue);
+	copy(a, rgb1);
 	view_rgb_image(rgb1);
 	//sobel edge detection
 	///*
@@ -398,9 +399,18 @@ while (1) {
 		double goal_theta = atan2(dy + repulse_y, dx + repulse_x);
 		double angle_diff = normalize_angle(goal_theta - theta);
 
-		if (fabs(angle_diff) < 0.2) { pw_l_o = 1500 - dpw; pw_r_o = 1500 + dpw; }//move straight
-		else if (angle_diff > 0) { pw_l_o = 1500 + dpw; pw_r_o = 1500 + dpw; }//rotate left
-		else { pw_l_o = 1500 - dpw; pw_r_o = 1500 - dpw; }//rotate right
+		if (fabs(angle_diff) < 0.2) { 
+			pw_l_o = 1500 - dpw;
+			pw_r_o = 1500 + dpw; 
+		}//move straight
+		else if (angle_diff > 0) { 
+			pw_l_o = 1500 + dpw; 
+			pw_r_o = 1500 + dpw; 
+		}//rotate left
+		else { 
+			pw_l_o = 1500 - dpw; 
+			pw_r_o = 1500 - dpw; 
+		}//rotate right
 
 		/*
 		cout << "\rFront x: " << front_x
@@ -410,12 +420,25 @@ while (1) {
 			<< " Theta: " << theta
 			<< flush;
 		*/
+		/*
 		if (check_collision(front_x, front_y, back_x, back_y, sim_robot_length, sim_robot_width, x_obs, y_obs, r_obs, N_obs)) {
 			cout << "\rCollision detected!" << flush;
 		}
 		else {
 			cout << "\rNo Collision detected!" << flush;
 		}
+		*/
+		//check line of sight
+
+		double angle_to_opp = atan2(dy, dx);
+		double normalized_angle_opp = normalize_angle(angle_to_opp);
+		if (normalized_angle_opp < 0.2) {
+			cout << "\rFacing opponent   " << flush;
+		}
+		else {
+			cout << "\rNot Facing opponent" << flush;
+		}
+		//*/
 		view_rgb_image(rgb0, v_mode);
 
 		if (KEY('X')) break;
@@ -426,7 +449,7 @@ while (1) {
 		// -- it seems laptops tend to go into low CPU mode
 		// when Sleep is called, which slows down the simulation
 		// more than the requested sleep time
-		Sleep(5); // 100 fps max
+		//Sleep(5); // 100 fps max
 	}
 
 	return 0;
@@ -1066,8 +1089,9 @@ bool has_line_of_sight(double x1, double y1, double x2, double y2) {
 	ibyte* pdata = (ibyte*)label.pdata;
 	int width = label.width;
 	int height = label.height;
+	const int margin_steps = 50;
 
-	for (int i = 0; i <= steps; ++i) {
+	for (int i = 0; i <= steps -  margin_steps; ++i) {
 		int xi = static_cast<int>(x1 + i * dx + 0.5);
 		int yi = static_cast<int>(y1 + i * dy + 0.5);
 
@@ -1137,25 +1161,17 @@ int get_obstacles(double* x_vals, double* y_vals, int n_obs) {
 		{ 180.0, 0.5, 0.075, 180.0, 0.5, 0.075 }//black
 	};
 	filter_colors(rgb1, rgb0, filters, 8);
-
+	view_rgb_image(rgb0);
+	pause();
 
 	int nlabels = label_objects(150);
 	int area;
-	//const int min_area = 700; // Minimum area for an obstacle to be considered
-
-	/*for (int L = 1; L <= nlabels; ++L) {
-		int A = object_area(label, L);
-		if (A < threshold_area_size) {
-			continue; // Skip small areas
-		}
-	}*/
 
 	int top_labels[50] = { 0 };
 	int top_areas[50] = { 0 };
 
 	for (int i = 0; i < nlabels; i++) {
 		area = object_area(label, i+1);
-		cout << "kept obstacle:" << i+1 << " area: " << area << endl;
 		for (int j = 0; j < n_obs; j++) {
 			if (area > top_areas[j]) {
 				// Shift down smaller values
@@ -1179,7 +1195,55 @@ int get_obstacles(double* x_vals, double* y_vals, int n_obs) {
 		double ic, jc;
 		centroid(a, label, top_labels[i], ic, jc);
 		draw_point_rgb(rgb1, int(ic), int(jc), 0, 255, 0);
-		cout << "Obstacle:" << top_labels[i] << " area: " << top_areas[i] << endl;
+		x_vals[i] = ic;
+		y_vals[i] = jc;
+	}
+
+	return 0;
+}
+
+int get_obstacles_sim(double* x_vals, double* y_vals, int n_obs) {
+
+	HSVFilter filters[] = {
+		{ 150.0, 0.5, 0.55, 20.0, 0.2, 0.25 },//green
+		{ 10.0, 0.65, 0.625, 8, 0.35, 0.375 },//red
+		{ 30, 0.55, 0.65, 10, 0.35, 0.35},//orange
+		{ 200.0, 0.6, 0.6, 10.0, 0.30, 0.30 },//blue
+		{ 180.0, 0.10, 0.15, 180.0, 0.1, 0.15 }//black
+	};
+	filter_colors(rgb1, rgb0, filters, 5);
+
+	int nlabels = label_objects(150);
+	int area;
+
+	int top_labels[50] = { 0 };
+	int top_areas[50] = { 0 };
+
+	for (int i = 0; i < nlabels; i++) {
+		area = object_area(label, i + 1);
+		for (int j = 0; j < n_obs; j++) {
+			if (area > top_areas[j]) {
+				// Shift down smaller values
+				for (int k = n_obs - 1; k > j; k--) {
+					top_areas[k] = top_areas[k - 1];
+					top_labels[k] = top_labels[k - 1];
+				}
+				top_areas[j] = area;
+				top_labels[j] = i + 1;
+				break;
+			}
+		}
+	}
+
+	for (int i = 0; i < n_obs; i++) {
+		if (top_labels[i] == -1) {
+			x_vals[i] = -1;
+			y_vals[i] = -1;
+			continue;
+		}
+		double ic, jc;
+		centroid(a, label, top_labels[i], ic, jc);
+		draw_point_rgb(rgb1, int(ic), int(jc), 0, 255, 0);
 		x_vals[i] = ic;
 		y_vals[i] = jc;
 	}
