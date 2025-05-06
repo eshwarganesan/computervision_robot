@@ -1161,8 +1161,8 @@ int get_obstacles(double* x_vals, double* y_vals, int n_obs) {
 		{ 180.0, 0.5, 0.075, 180.0, 0.5, 0.075 }//black
 	};
 	filter_colors(rgb1, rgb0, filters, 8);
-	view_rgb_image(rgb0);
-	pause();
+	//view_rgb_image(rgb0);
+	//pause();
 
 	int nlabels = label_objects(150);
 	int area;
