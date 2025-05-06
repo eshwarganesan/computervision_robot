@@ -51,7 +51,55 @@ static double normalize_angle(double angle) {
 	while (angle < -3.14159) angle += 2 * 3.14159;
 	return angle;
 }
-DriveCmd decide_cmd(double fx, double fy, double bx, double by, double ofx, double ofy, double obx, double oby, double theta) {
+DriveCmd decide_cmd(double fx, double fy, double bx, double by, double ofx, double ofy, double obx, double oby, double theta, const double obs_x[], const double obs_y[], int N_obs) {
+	
+	//get direction to opponent
+
+	double cx = (fx + bx) / 2.0;
+	double cy = (fy + by) / 2.0;
+	double ox = (ofx + obx) / 2.0;
+	double oy = (ofy + oby) / 2.0;
+
+	double dx = ox - cx;
+	double dy = oy - cy;
+
+	double repulse_x = 0.0, repulse_y = 0.0;
+	for (int i = 0; i < N_obs; ++i) {
+		double odx = obs_x[i] - cx;
+		double ody = obs_y[i] - cy;
+		double dist2 = odx * odx + ody * ody;
+
+		if (dist2 < 15000) { //radius squared
+			double scale = 10000 / dist2;
+			repulse_x -= scale * odx;
+			repulse_y -= scale * ody;
+		}
+	}
+	double dist_left = cx - 0.0;
+	if (dist_left > 1.0) {
+		double scale = 10000.0 / (dist_left * dist_left);
+		repulse_x += scale; //push rightt positive x
+	}
+	double dist_right = 640.0 - cx;
+	if (dist_right > 1.0) {
+		double scale = 10000.0 / (dist_right * dist_right);
+		repulse_x -= scale; // push left negative x
+	}
+	double dist_top = cy - 0.0;
+	if (dist_top > 1.0) {
+		double scale = 10000.0 / (dist_top * dist_top);
+		repulse_y += scale; // push down positive y
+	}
+	double dist_bottom = 480.0 - cy;
+	if (dist_bottom > 1.0) {
+		double scale = 10000.0 / (dist_bottom * dist_bottom);
+		repulse_y -= scale; // push up negative y
+	}
+
+
+	double goal_theta = atan2(dy + repulse_y, dx + repulse_x);
+	double angle_diff = normalize_angle(goal_theta - theta);
+
 	/*
 	//OUR position
 	double x = (fx + bx) *0.5, y = (fy + by) *0.5;
@@ -80,18 +128,18 @@ DriveCmd decide_cmd(double fx, double fy, double bx, double by, double ofx, doub
 	}
 
 	
-	*/
+	
 	double ox = (ofx + obx) * 0.5;
 	double oy = (ofy + oby) * 0.5;
 	double cx = (fx + bx) * 0.5;
 	double cy = (fy + by) * 0.5;
 	double dx = ox - cx;
 	double dy = oy - cy;
-
+	
 	
 	double goal_theta = atan2(dy, dx);
 	double angle_diff = normalize_angle(goal_theta - theta);
-
+	*/
 	if (fabs(angle_diff) < 0.2) {
 		return DriveCmd::FWD;	//move straight
 	}
